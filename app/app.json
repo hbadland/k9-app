@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Battersea K9",
+    "slug": "k9-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "k9app",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.batterseak9.app"
+    },
+    "android": {
+      "package": "com.batterseak9.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E0D0B"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
+  }
+}
