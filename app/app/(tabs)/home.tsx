@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Linking, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
@@ -23,14 +23,30 @@ function greeting() {
 export default function Home() {
   const { user } = useAuthStore();
   const router   = useRouter();
-  const [credits,     setCredits]     = useState<number | null>(null);
-  const [nextBooking, setNextBooking] = useState<NextBooking | null | 'loading'>('loading');
+  const [credits,       setCredits]       = useState<number | null>(null);
+  const [nextBooking,   setNextBooking]   = useState<NextBooking | null | 'loading'>('loading');
+  const [purchasing,    setPurchasing]    = useState<string | null>(null);
 
   useEffect(() => {
     api.get('/bookings/next')
       .then(({ data }) => setNextBooking(data))
       .catch(() => setNextBooking(null));
+    api.get('/payments/wallet')
+      .then(({ data }) => setCredits(data.balance))
+      .catch(() => setCredits(0));
   }, []);
+
+  const openCheckout = async (productKey: string) => {
+    setPurchasing(productKey);
+    try {
+      const { data } = await api.post('/payments/checkout', { product: productKey });
+      await Linking.openURL(data.url);
+    } catch {
+      Alert.alert('Error', 'Could not open checkout. Please try again.');
+    } finally {
+      setPurchasing(null);
+    }
+  };
 
   const firstName = user?.first_name ?? 'there';
 
@@ -163,11 +179,12 @@ export default function Home() {
         {/* Purchase cards */}
         <Text style={[s.tilesLabel, { paddingTop: 8 }]}>Walks &amp; Pricing</Text>
         {[
-          { accent: C.blue,    icon: '🦮', title: 'Single Walk',   desc: 'One-off booking, pay as you go' },
-          { accent: C.gold,    icon: '🎒', title: 'Walk Bundle',   desc: 'Buy in bulk & save — top up anytime',  badge: 'Best value' },
-          { accent: '#A080D8', icon: '⭐', title: 'Subscription',  desc: 'Monthly plan with priority booking' },
-        ].map(({ accent, icon, title, desc, badge }) => (
-          <View key={title} style={s.purchaseCard}>
+          { accent: C.blue,    icon: '🦮', title: 'Single Walk',    desc: 'One-off booking, pay as you go',           product: 'single' },
+          { accent: C.gold,    icon: '🎒', title: '10 Walk Bundle', desc: 'Buy 10 walks — save £50 vs single price',  product: 'bundle10', badge: 'Best value' },
+          { accent: '#A080D8', icon: '⭐', title: 'Monthly Plan',   desc: '5 walks/month with priority booking',      product: 'subscription' },
+        ].map(({ accent, icon, title, desc, badge, product }) => (
+          <TouchableOpacity key={title} style={s.purchaseCard} activeOpacity={0.75}
+            onPress={() => openCheckout(product)}>
             <View style={[s.purchaseCardAccent, { backgroundColor: accent }]} />
             <View style={s.pcLeft}>
               <View style={[s.pcIconWrap, { backgroundColor: `${accent}26` }]}>
@@ -178,11 +195,13 @@ export default function Home() {
                 <Text style={s.pcDesc}>{desc}</Text>
               </View>
             </View>
-            {badge
-              ? <View style={s.pcBadge}><Text style={s.pcBadgeText}>{badge}</Text></View>
-              : <Text style={s.pcArrow}>›</Text>
+            {purchasing === product
+              ? <ActivityIndicator color={C.gold} style={{ paddingLeft: 8 }} />
+              : badge
+                ? <View style={s.pcBadge}><Text style={s.pcBadgeText}>{badge}</Text></View>
+                : <Text style={s.pcArrow}>›</Text>
             }
-          </View>
+          </TouchableOpacity>
         ))}
 
         <View style={{ height: 32 }} />

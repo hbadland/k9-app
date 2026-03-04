@@ -8,6 +8,7 @@ import meRouter from './routes/me';
 import dogsRouter from './routes/dogs';
 import adminRouter from './routes/admin';
 import bookingsRouter from './routes/bookings';
+import paymentsRouter, { webhookHandler } from './routes/payments';
 
 const app = express();
 
@@ -26,6 +27,9 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// Stripe webhook needs raw body — must be registered before express.json()
+app.post('/payments/webhook', express.raw({ type: 'application/json' }), webhookHandler);
 
 app.use(express.json());
 
@@ -51,6 +55,7 @@ app.use('/me', meRouter);
 app.use('/dogs', dogsRouter);
 app.use('/admin', adminRouter);
 app.use('/bookings', bookingsRouter);
+app.use('/payments', paymentsRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

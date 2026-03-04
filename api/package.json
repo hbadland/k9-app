@@ -5,7 +5,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "migrate": "psql $DATABASE_URL -f migrations/001_init.sql && psql $DATABASE_URL -f migrations/002_dog_details.sql && psql $DATABASE_URL -f migrations/003_bookings.sql"
+    "migrate": "psql $DATABASE_URL -f migrations/001_init.sql && psql $DATABASE_URL -f migrations/002_dog_details.sql && psql $DATABASE_URL -f migrations/003_bookings.sql && psql $DATABASE_URL -f migrations/004_payments.sql"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -16,6 +16,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.12.0",
+    "stripe": "^20.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

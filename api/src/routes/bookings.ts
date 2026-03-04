@@ -50,8 +50,9 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
     });
     res.status(201).json(booking);
   } catch (e: any) {
-    if (e.message === 'DOG_NOT_FOUND') { res.status(403).json({ error: 'Dog not found or does not belong to you.' }); return; }
-    if (e.message === 'SLOT_FULL') { res.status(409).json({ error: 'This slot is fully booked.' }); return; }
+    if (e.message === 'DOG_NOT_FOUND')          { res.status(403).json({ error: 'Dog not found or does not belong to you.' }); return; }
+    if (e.message === 'INSUFFICIENT_CREDITS')   { res.status(402).json({ error: 'Insufficient credits. Please top up your wallet.' }); return; }
+    if (e.message === 'SLOT_FULL')              { res.status(409).json({ error: 'This slot is fully booked.' }); return; }
     throw e;
   }
 });

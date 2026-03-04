@@ -120,40 +120,87 @@ export const getNextBooking = async (ownerId: string): Promise<Booking | null> =
 export const createBooking = async (data: {
   owner_id: string; dog_id: string; slot_id: string; notes?: string;
 }): Promise<Booking> => {
-  // Verify the dog belongs to this owner
-  const { rowCount: dogCheck } = await pool.query(
-    'SELECT 1 FROM dogs WHERE id = $1 AND owner_id = $2',
-    [data.dog_id, data.owner_id]
-  );
-  if (!dogCheck) throw new Error('DOG_NOT_FOUND');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  // Check capacity
-  const { rows: cap } = await pool.query(`
-    SELECT s.capacity, COUNT(b.id) FILTER (WHERE b.status != 'cancelled') AS booked
-    FROM availability_slots s
-    LEFT JOIN bookings b ON b.slot_id = s.id
-    WHERE s.id = $1
-    GROUP BY s.capacity
-  `, [data.slot_id]);
-  if (!cap[0] || parseInt(cap[0].booked) >= cap[0].capacity) {
-    throw new Error('SLOT_FULL');
+    // Verify dog belongs to this owner
+    const { rowCount: dogCheck } = await client.query(
+      'SELECT 1 FROM dogs WHERE id = $1 AND owner_id = $2',
+      [data.dog_id, data.owner_id]
+    );
+    if (!dogCheck) throw new Error('DOG_NOT_FOUND');
+
+    // Debit 1 credit atomically (balance check built in via CHECK constraint + WHERE)
+    const { rows: walletRows } = await client.query(
+      'UPDATE wallets SET balance = balance - 1, updated_at = NOW() WHERE user_id = $1 AND balance >= 1 RETURNING id',
+      [data.owner_id]
+    );
+    if (!walletRows[0]) throw new Error('INSUFFICIENT_CREDITS');
+    await client.query(
+      "INSERT INTO wallet_transactions (wallet_id, amount, type, description) VALUES ($1, -1, 'usage', 'Walk booking')",
+      [walletRows[0].id]
+    );
+
+    // Check slot capacity
+    const { rows: cap } = await client.query(`
+      SELECT s.capacity, COUNT(b.id) FILTER (WHERE b.status != 'cancelled') AS booked
+      FROM availability_slots s
+      LEFT JOIN bookings b ON b.slot_id = s.id
+      WHERE s.id = $1
+      GROUP BY s.capacity
+    `, [data.slot_id]);
+    if (!cap[0] || parseInt(cap[0].booked) >= cap[0].capacity) throw new Error('SLOT_FULL');
+
+    // Create booking
+    const { rows } = await client.query(
+      'INSERT INTO bookings (owner_id, dog_id, slot_id, notes) VALUES ($1,$2,$3,$4) RETURNING *',
+      [data.owner_id, data.dog_id, data.slot_id, data.notes ?? null]
+    );
+
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
   }
-
-  const { rows } = await pool.query(
-    `INSERT INTO bookings (owner_id, dog_id, slot_id, notes)
-     VALUES ($1,$2,$3,$4) RETURNING *`,
-    [data.owner_id, data.dog_id, data.slot_id, data.notes ?? null]
-  );
-  return rows[0];
 };
 
 export const cancelBooking = async (id: string, ownerId: string): Promise<boolean> => {
-  const { rowCount } = await pool.query(
-    `UPDATE bookings SET status = 'cancelled'
-     WHERE id = $1 AND owner_id = $2 AND status IN ('pending','confirmed')`,
-    [id, ownerId]
-  );
-  return (rowCount ?? 0) > 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rowCount } = await client.query(
+      `UPDATE bookings SET status = 'cancelled'
+       WHERE id = $1 AND owner_id = $2 AND status IN ('pending','confirmed')`,
+      [id, ownerId]
+    );
+
+    if ((rowCount ?? 0) > 0) {
+      // Refund 1 credit
+      const { rows: walletRows } = await client.query(
+        'UPDATE wallets SET balance = balance + 1, updated_at = NOW() WHERE user_id = $1 RETURNING id',
+        [ownerId]
+      );
+      if (walletRows[0]) {
+        await client.query(
+          "INSERT INTO wallet_transactions (wallet_id, amount, type, description) VALUES ($1, 1, 'refund', 'Booking cancelled')",
+          [walletRows[0].id]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return (rowCount ?? 0) > 0;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 };
 
 export const getAllBookings = async (): Promise<Booking[]> => {

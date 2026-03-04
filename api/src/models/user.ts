@@ -11,6 +11,7 @@ export interface User {
   phone: string | null;
   address: string | null;
   admin_notes: string | null;
+  stripe_customer_id: string | null;
   created_at: Date;
 }
 
