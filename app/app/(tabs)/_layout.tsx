@@ -1,6 +1,5 @@
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Text, StyleSheet } from 'react-native';
 import { C } from '../../lib/theme';
 
 function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) {
@@ -19,28 +18,24 @@ const ic = StyleSheet.create({
   labelActive: { color: C.gold },
 });
 
-const TAB_BG = Platform.OS === 'ios' ? 'transparent' : `${C.dark}F7`;
-
 export default function TabsLayout() {
   return (
     <Tabs
+      initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: {
           position: 'absolute',
           height: 88,
-          backgroundColor: TAB_BG,
+          backgroundColor: `${C.dark}F7`,
           borderTopColor: 'rgba(255,255,255,0.06)',
           borderTopWidth: 1,
           elevation: 0,
         },
-        tabBarBackground: () =>
-          Platform.OS === 'ios' ? (
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: `${C.dark2}F7` }]} />
-          ),
+        tabBarBackground: () => (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: `${C.dark2}F7` }]} />
+        ),
       }}
     >
       <Tabs.Screen

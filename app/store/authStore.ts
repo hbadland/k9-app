@@ -24,18 +24,20 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  loading: false,
+  loading: true,
 
   login: async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
+    if (!data.accessToken) throw new Error('No token received');
     await saveTokens(data.accessToken, data.refreshToken);
-    set({ user: data.user });
+    setTimeout(() => set({ user: data.user }), 50);
   },
 
   register: async (email, password, firstName, lastName) => {
     const { data } = await api.post('/auth/register', { email, password, firstName, lastName });
+    if (!data.accessToken) throw new Error('No token received');
     await saveTokens(data.accessToken, data.refreshToken);
-    set({ user: data.user });
+    setTimeout(() => set({ user: data.user }), 50);
   },
 
   logout: async () => {

@@ -3,10 +3,12 @@ import { getAccessToken, getRefreshToken, saveTokens, clearTokens } from './auth
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-export const api = axios.create({ baseURL: API_URL });
+export const api = axios.create({ baseURL: API_URL, timeout: 8000 });
 
-// Attach access token to every request
+// Attach access token to every request (skip for auth endpoints)
 api.interceptors.request.use(async (config) => {
+  const url = config.url ?? '';
+  if (url.startsWith('/auth/')) return config;
   const token = await getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;

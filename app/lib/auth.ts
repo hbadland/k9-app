@@ -3,15 +3,41 @@ import * as SecureStore from 'expo-secure-store';
 const ACCESS_KEY = 'k9_access_token';
 const REFRESH_KEY = 'k9_refresh_token';
 
+let memAccess: string | null = null;
+let memRefresh: string | null = null;
+
 export const saveTokens = async (accessToken: string, refreshToken: string) => {
-  await SecureStore.setItemAsync(ACCESS_KEY, accessToken);
-  await SecureStore.setItemAsync(REFRESH_KEY, refreshToken);
+  memAccess = accessToken;
+  memRefresh = refreshToken;
+  try {
+    await SecureStore.setItemAsync(ACCESS_KEY, accessToken);
+    await SecureStore.setItemAsync(REFRESH_KEY, refreshToken);
+  } catch (e) {
+    console.warn('[auth] SecureStore write failed, using memory only', e);
+  }
 };
 
-export const getAccessToken = () => SecureStore.getItemAsync(ACCESS_KEY);
-export const getRefreshToken = () => SecureStore.getItemAsync(REFRESH_KEY);
+export const getAccessToken = async () => {
+  try {
+    return await SecureStore.getItemAsync(ACCESS_KEY) ?? memAccess;
+  } catch {
+    return memAccess;
+  }
+};
+
+export const getRefreshToken = async () => {
+  try {
+    return await SecureStore.getItemAsync(REFRESH_KEY) ?? memRefresh;
+  } catch {
+    return memRefresh;
+  }
+};
 
 export const clearTokens = async () => {
-  await SecureStore.deleteItemAsync(ACCESS_KEY);
-  await SecureStore.deleteItemAsync(REFRESH_KEY);
+  memAccess = null;
+  memRefresh = null;
+  try {
+    await SecureStore.deleteItemAsync(ACCESS_KEY);
+    await SecureStore.deleteItemAsync(REFRESH_KEY);
+  } catch {}
 };
