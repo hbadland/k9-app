@@ -15,14 +15,16 @@ export default function RootLayout() {
   useEffect(() => {
     if (loading) return;
     const inAuth = segments[0] === '(auth)';
+    const inTabs = segments[0] === '(tabs)';
     const inOnboarding = segments[0] === 'onboarding';
     if (!user && !inAuth) {
       router.replace('/(auth)/login');
     } else if (user && inAuth) {
       const isNew = !user.first_name;
       router.replace(isNew ? '/onboarding' : '/(tabs)/home');
-    } else if (user && inOnboarding) {
-      // Already in onboarding — let it run
+    } else if (user && !inTabs && !inOnboarding) {
+      const isNew = !user.first_name;
+      router.replace(isNew ? '/onboarding' : '/(tabs)/home');
     }
   }, [user, loading, segments]);
 

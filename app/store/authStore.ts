@@ -18,6 +18,8 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
+  loginWithApple: (identityToken: string, fullName?: { givenName?: string | null; familyName?: string | null } | null) => Promise<void>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
 }
@@ -35,6 +37,20 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   register: async (email, password, firstName, lastName) => {
     const { data } = await api.post('/auth/register', { email, password, firstName, lastName });
+    if (!data.accessToken) throw new Error('No token received');
+    await saveTokens(data.accessToken, data.refreshToken);
+    setTimeout(() => set({ user: data.user }), 50);
+  },
+
+  loginWithGoogle: async (idToken) => {
+    const { data } = await api.post('/auth/google', { idToken });
+    if (!data.accessToken) throw new Error('No token received');
+    await saveTokens(data.accessToken, data.refreshToken);
+    setTimeout(() => set({ user: data.user }), 50);
+  },
+
+  loginWithApple: async (identityToken, fullName) => {
+    const { data } = await api.post('/auth/apple', { identityToken, fullName });
     if (!data.accessToken) throw new Error('No token received');
     await saveTokens(data.accessToken, data.refreshToken);
     setTimeout(() => set({ user: data.user }), 50);
