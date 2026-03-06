@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import * as UserModel from '../models/user';
+import { pool } from '../config/db';
 
 const router = Router();
 
@@ -26,6 +27,13 @@ router.put('/', requireAuth, async (req: AuthRequest, res: Response) => {
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
   const { password_hash: _, ...safeUser } = user;
   res.json(safeUser);
+});
+
+router.post('/push-token', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { token } = req.body;
+  if (!token || typeof token !== 'string') { res.status(400).json({ error: 'token required' }); return; }
+  await pool.query('UPDATE users SET expo_push_token=$1 WHERE id=$2', [token, req.user!.userId]);
+  res.json({ ok: true });
 });
 
 export default router;

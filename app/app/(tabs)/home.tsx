@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Linking, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Linking, Alert, ActivityIndicator, AppState, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
@@ -10,8 +10,15 @@ import { C, F } from '../../lib/theme';
 const { width } = Dimensions.get('window');
 
 interface NextBooking {
-  dog_name: string; service_name: string; slot_date: string;
-  slot_start: string; slot_end: string; status: string;
+  id: string; dog_name: string; dog_photo_url?: string; service_name: string;
+  slot_date: string; slot_start: string; slot_end: string; status: string;
+}
+
+function DogAvatar({ uri }: { uri?: string }) {
+  if (uri) {
+    return <Image source={{ uri }} style={s.dogAvImg} />;
+  }
+  return <View style={s.dogAv}><Text style={s.dogAvText}>🐶</Text></View>;
 }
 
 function greeting() {
@@ -28,13 +35,19 @@ export default function Home() {
   const [nextBooking,   setNextBooking]   = useState<NextBooking | null | 'loading'>('loading');
   const [purchasing,    setPurchasing]    = useState<string | null>(null);
 
+  const refreshWallet = () =>
+    api.get('/payments/wallet').then(({ data }) => setCredits(data.balance)).catch(() => {});
+
   useEffect(() => {
+    refreshWallet();
     api.get('/bookings/next')
       .then(({ data }) => setNextBooking(data))
       .catch(() => setNextBooking(null));
-    api.get('/payments/wallet')
-      .then(({ data }) => setCredits(data.balance))
-      .catch(() => setCredits(0));
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', s => { if (s === 'active') refreshWallet(); });
+    return () => sub.remove();
   }, []);
 
   const openCheckout = async (productKey: string) => {
@@ -89,7 +102,7 @@ export default function Home() {
           {nextBooking && nextBooking !== 'loading' ? (
             <>
               <View style={s.nwcRow}>
-                <View style={s.dogAv}><Text style={s.dogAvText}>🐶</Text></View>
+                <DogAvatar uri={nextBooking.dog_photo_url} />
                 <View style={s.nwcInfo}>
                   <Text style={s.nwcDogName}>{nextBooking.dog_name}</Text>
                   <Text style={s.nwcWhen}>
@@ -116,11 +129,19 @@ export default function Home() {
                   </View>
                 ))}
               </View>
+              {nextBooking.status === 'in_progress' && (
+                <TouchableOpacity
+                  style={s.liveBtn}
+                  onPress={() => router.push({ pathname: '/booking/[id]', params: { id: nextBooking.id } })}
+                >
+                  <Text style={s.liveBtnText}>🔴 Live  ·  View updates</Text>
+                </TouchableOpacity>
+              )}
             </>
           ) : (
             <>
               <View style={s.nwcRow}>
-                <View style={s.dogAv}><Text style={s.dogAvText}>🐶</Text></View>
+                <DogAvatar />
                 <View style={s.nwcInfo}>
                   <Text style={s.nwcDogName}>No walks booked yet</Text>
                   <Text style={s.nwcWhen}>Book your first walk below</Text>
@@ -142,7 +163,7 @@ export default function Home() {
         {/* Quick Access */}
         <Text style={s.tilesLabel}>Quick Access</Text>
         <View style={s.tiles}>
-          <TouchableOpacity style={s.tile} onPress={() => router.push('/(tabs)/dogs')}>
+          <TouchableOpacity style={s.tile} onPress={() => router.push('/(tabs)/tracking')}>
             <View style={[s.tileAccent, { backgroundColor: C.gold }]} />
             <Text style={s.tileIcon}>📍</Text>
             <Text style={s.tileTitle}>Live Tracking</Text>
@@ -180,10 +201,11 @@ export default function Home() {
         {/* Purchase cards */}
         <Text style={[s.tilesLabel, { paddingTop: 8 }]}>Walks &amp; Pricing</Text>
         {[
-          { accent: C.blue,    icon: '🦮', title: 'Single Walk',    desc: 'One-off booking, pay as you go',           product: 'single' },
-          { accent: C.gold,    icon: '🎒', title: '10 Walk Bundle', desc: 'Buy 10 walks — save £50 vs single price',  product: 'bundle10', badge: 'Best value' },
-          { accent: '#A080D8', icon: '⭐', title: 'Monthly Plan',   desc: '5 walks/month with priority booking',      product: 'subscription' },
-        ].map(({ accent, icon, title, desc, badge, product }) => (
+          { accent: C.blue,    icon: '🦮', title: 'Single Walk',    price: '£25',    desc: 'Pay as you go',                             product: 'single' },
+          { accent: C.green,   icon: '🎒', title: '5 Walk Bundle',  price: '£110',   desc: 'Save £15 vs single price',                  product: 'bundle5',      badge: 'Save £15' },
+          { accent: C.gold,    icon: '🎒', title: '10 Walk Bundle', price: '£200',   desc: 'Save £50 vs single price',                  product: 'bundle10',     badge: 'Best value' },
+          { accent: '#A080D8', icon: '⭐', title: 'Monthly Plan',   price: '£80/mo', desc: '5 walks/month, priority booking',           product: 'subscription' },
+        ].map(({ accent, icon, title, price, desc, badge, product }) => (
           <TouchableOpacity key={title} style={s.purchaseCard} activeOpacity={0.75}
             onPress={() => openCheckout(product)}>
             <View style={[s.purchaseCardAccent, { backgroundColor: accent }]} />
@@ -191,17 +213,20 @@ export default function Home() {
               <View style={[s.pcIconWrap, { backgroundColor: `${accent}26` }]}>
                 <Text style={s.pcIcon}>{icon}</Text>
               </View>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={s.pcTitle}>{title}</Text>
                 <Text style={s.pcDesc}>{desc}</Text>
               </View>
             </View>
-            {purchasing === product
-              ? <ActivityIndicator color={C.gold} style={{ paddingLeft: 8 }} />
-              : badge
-                ? <View style={s.pcBadge}><Text style={s.pcBadgeText}>{badge}</Text></View>
-                : <Text style={s.pcArrow}>›</Text>
-            }
+            <View style={s.pcRight}>
+              <Text style={[s.pcPrice, { color: accent }]}>{price}</Text>
+              {purchasing === product
+                ? <ActivityIndicator color={C.gold} style={{ marginTop: 4 }} />
+                : badge
+                  ? <View style={s.pcBadge}><Text style={s.pcBadgeText}>{badge}</Text></View>
+                  : <Text style={s.pcArrow}>›</Text>
+              }
+            </View>
           </TouchableOpacity>
         ))}
 
@@ -233,6 +258,7 @@ const s = StyleSheet.create({
   dogAv:          { width: 54, height: 54, borderRadius: 27, backgroundColor: C.dark4,
                     borderWidth: 2, borderColor: `${C.gold}59`, alignItems: 'center', justifyContent: 'center' },
   dogAvText:      { fontSize: 26 },
+  dogAvImg:       { width: 54, height: 54, borderRadius: 27, borderWidth: 2, borderColor: `${C.gold}59` },
   nwcInfo:        { flex: 1 },
   nwcDogName:     { fontSize: 17, fontWeight: '600', color: C.cream },
   nwcWhen:        { fontSize: 12, color: C.textDim, marginTop: 3 },
@@ -244,6 +270,9 @@ const s = StyleSheet.create({
   nwcMetaItem:    { alignItems: 'center' },
   nwcMetaVal:     { fontSize: 15, fontWeight: '700', color: C.cream },
   nwcMetaLbl:     { fontSize: 10, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
+  liveBtn:        { marginTop: 14, backgroundColor: `${C.red}1F`, borderWidth: 1, borderColor: `${C.red}40`,
+                    borderRadius: 12, paddingVertical: 8, alignItems: 'center' },
+  liveBtnText:    { color: C.red, fontSize: 13, fontWeight: '600' },
 
   // Tiles
   tilesLabel:     { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.8, color: C.textDim,
@@ -280,6 +309,8 @@ const s = StyleSheet.create({
   pcTitle:        { fontSize: 14, fontWeight: '600', color: C.cream },
   pcDesc:         { fontSize: 11, color: C.textDim, marginTop: 3 },
   pcArrow:        { fontSize: 22, color: C.textDim, paddingLeft: 8 },
+  pcRight:        { alignItems: 'flex-end', gap: 4, flexShrink: 0 },
+  pcPrice:        { fontSize: 14, fontWeight: '700' },
   pcBadge:        { backgroundColor: `${C.gold}24`, borderWidth: 1, borderColor: `${C.gold}4D`,
                     paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 },
   pcBadgeText:    { fontSize: 10, fontWeight: '700', color: C.gold, letterSpacing: 0.3, textTransform: 'uppercase' },

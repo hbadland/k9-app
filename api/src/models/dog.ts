@@ -49,11 +49,13 @@ export const updateDog = async (id: string, ownerId: string, data: Partial<Dog>)
        vet_name           = COALESCE($5,  vet_name),
        vet_phone          = COALESCE($6,  vet_phone),
        medical_notes      = COALESCE($7,  medical_notes),
-       behavioural_notes  = COALESCE($8,  behavioural_notes)
-     WHERE id = $9 AND owner_id = $10 RETURNING *`,
+       behavioural_notes  = COALESCE($8,  behavioural_notes),
+       avatar_url         = COALESCE($9,  avatar_url)
+     WHERE id = $10 AND owner_id = $11 RETURNING *`,
     [
       data.name, data.breed, data.age_months, data.notes,
       data.vet_name, data.vet_phone, data.medical_notes, data.behavioural_notes,
+      data.avatar_url,
       id, ownerId,
     ]
   );

@@ -103,17 +103,33 @@ export const getNextBooking = async (ownerId: string): Promise<Booking | null> =
   const { rows } = await pool.query(`
     SELECT b.*, sv.name AS service_name, sv.type AS service_type,
            s.date AS slot_date, s.start_time AS slot_start, s.end_time AS slot_end,
-           d.name AS dog_name
+           d.name AS dog_name, d.avatar_url AS dog_photo_url
     FROM bookings b
     JOIN availability_slots s ON s.id = b.slot_id
     JOIN services sv ON sv.id = s.service_id
     JOIN dogs d ON d.id = b.dog_id
     WHERE b.owner_id = $1
-      AND b.status IN ('pending','confirmed')
+      AND b.status IN ('pending','confirmed','in_progress')
       AND s.date >= CURRENT_DATE
-    ORDER BY s.date, s.start_time
+    ORDER BY
+      CASE b.status WHEN 'in_progress' THEN 0 ELSE 1 END,
+      s.date, s.start_time
     LIMIT 1
   `, [ownerId]);
+  return rows[0] ?? null;
+};
+
+export const getBookingById = async (id: string, ownerId: string): Promise<Booking | null> => {
+  const { rows } = await pool.query(`
+    SELECT b.*, sv.name AS service_name, sv.type AS service_type,
+           s.date AS slot_date, s.start_time AS slot_start, s.end_time AS slot_end,
+           d.name AS dog_name
+    FROM bookings b
+    JOIN availability_slots s ON s.id = b.slot_id
+    JOIN services sv ON sv.id = s.service_id
+    JOIN dogs d ON d.id = b.dog_id
+    WHERE b.id = $1 AND b.owner_id = $2
+  `, [id, ownerId]);
   return rows[0] ?? null;
 };
 

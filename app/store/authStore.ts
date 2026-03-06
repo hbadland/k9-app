@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import { saveTokens, clearTokens } from '../lib/auth';
+import { saveTokens, clearTokens, getRefreshToken } from '../lib/auth';
 
 interface User {
   id: string;
@@ -57,7 +57,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    await api.post('/auth/logout').catch(() => {});
+    const refreshToken = await getRefreshToken();
+    await api.post('/auth/logout', { refreshToken }).catch(() => {});
     await clearTokens();
     set({ user: null });
   },

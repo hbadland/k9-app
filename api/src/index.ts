@@ -1,14 +1,19 @@
 import 'dotenv/config';
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { Server } from 'socket.io';
 import authRouter from './routes/auth';
 import meRouter from './routes/me';
 import dogsRouter from './routes/dogs';
 import adminRouter from './routes/admin';
 import bookingsRouter from './routes/bookings';
 import paymentsRouter, { webhookHandler } from './routes/payments';
+import { verifyAccess } from './utils/jwt';
+import { simulator } from './services/locationSimulator';
+import { setIo } from './config/io';
 
 const app = express();
 
@@ -59,5 +64,41 @@ app.use('/payments', paymentsRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+// ── Socket.io ─────────────────────────────────────────────────────────────
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('No token'));
+  try {
+    const payload = verifyAccess(token);
+    socket.data.userId = payload.userId;
+    next();
+  } catch {
+    next(new Error('Invalid token'));
+  }
+});
+
+setIo(io);
+
+io.on('connection', (socket) => {
+  socket.on('subscribe:dog', ({ dogId }: { dogId: string }) => {
+    socket.join(`dog:${dogId}`);
+    socket.emit('walk:status', { active: simulator.isActive(dogId) });
+  });
+  socket.on('unsubscribe:dog', ({ dogId }: { dogId: string }) => {
+    socket.leave(`dog:${dogId}`);
+  });
+  socket.on('subscribe:booking', ({ bookingId }: { bookingId: string }) => {
+    socket.join(`booking:${bookingId}`);
+  });
+  socket.on('unsubscribe:booking', ({ bookingId }: { bookingId: string }) => {
+    socket.leave(`booking:${bookingId}`);
+  });
+});
+
+simulator.init(io);
+
 const PORT = process.env.PORT ?? 3000;
-app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));

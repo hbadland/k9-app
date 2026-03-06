@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import * as BookingModel from '../models/booking';
+import messagesRouter from './messages';
 
 const router = Router();
 
@@ -57,10 +58,18 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
+router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+  const booking = await BookingModel.getBookingById(req.params.id, req.user!.userId);
+  if (!booking) { res.status(404).json({ error: 'Booking not found' }); return; }
+  res.json(booking);
+});
+
 router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
   const cancelled = await BookingModel.cancelBooking(req.params.id, req.user!.userId);
   if (!cancelled) { res.status(404).json({ error: 'Booking not found or cannot be cancelled.' }); return; }
   res.json({ ok: true });
 });
+
+router.use('/:bookingId/messages', messagesRouter);
 
 export default router;

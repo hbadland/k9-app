@@ -115,6 +115,14 @@ export async function webhookHandler(req: Request, res: Response): Promise<void>
       }
     }
 
+    // Subscription payment failed
+    if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object as import('stripe').Stripe.Invoice;
+      console.error('[Stripe] Payment failed for customer:', invoice.customer, 'amount:', invoice.amount_due);
+      // Credits not deducted — user retains existing balance
+      // Future: trigger push notification
+    }
+
     // Subscription renewal (month 2+)
     if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object as import('stripe').Stripe.Invoice;

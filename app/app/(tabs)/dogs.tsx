@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, Modal,
-         StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+         StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { api } from '../../lib/api';
 import { C, F } from '../../lib/theme';
 import DogCard from '../../components/DogCard';
@@ -10,9 +11,11 @@ interface Dog {
   id: string; name: string; breed: string | null; age_months: number | null;
   notes: string | null; vet_name: string | null; vet_phone: string | null;
   medical_notes: string | null; behavioural_notes: string | null;
+  avatar_url: string | null;
 }
 
 export default function Dogs() {
+  const router                  = useRouter();
   const [dogs, setDogs]         = useState<Dog[]>([]);
   const [loading, setLoading]   = useState(true);
   const [modal, setModal]       = useState(false);
@@ -54,11 +57,6 @@ export default function Dogs() {
     finally { setSaving(false); }
   };
 
-  const deleteDog = (id: string) =>
-    Alert.alert('Remove dog', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => { await api.delete(`/dogs/${id}`); fetchDogs(); } },
-    ]);
 
   return (
     <View style={s.container}>
@@ -76,7 +74,12 @@ export default function Dogs() {
           <FlatList
             data={dogs}
             keyExtractor={(d) => d.id}
-            renderItem={({ item }) => <DogCard dog={item} onDelete={() => deleteDog(item.id)} />}
+            renderItem={({ item }) => (
+              <DogCard
+                dog={item}
+                onPress={() => router.push({ pathname: '/dog/[id]', params: { id: item.id } })}
+              />
+            )}
             contentContainerStyle={s.listContent}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
@@ -182,4 +185,5 @@ const s = StyleSheet.create({
   saveBtnText: { color: C.dark, fontWeight: '700', fontSize: 15 },
   cancelBtn:   { padding: 14, alignItems: 'center' },
   cancelText:  { color: C.textDim, fontSize: 14 },
+
 });

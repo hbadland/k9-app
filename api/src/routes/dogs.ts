@@ -14,6 +14,7 @@ const dogSchema = z.object({
   vet_phone:          z.string().optional(),
   medical_notes:      z.string().optional(),
   behavioural_notes:  z.string().optional(),
+  avatar_url:         z.string().optional(),
 });
 
 router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {

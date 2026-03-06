@@ -18,11 +18,11 @@ function Layout() {
           <p className="text-muted text-xs mt-1">{user?.first_name ?? user?.email}</p>
         </div>
         <div className="space-y-1 flex-1">
-          {[['/', 'Dashboard'], ['/clients', 'Clients'], ['/bookings', 'Bookings'], ['/slots', 'Slots']].map(([to, label]) => (
+          {([['/', '📊', 'Dashboard'], ['/clients', '👥', 'Clients'], ['/bookings', '📅', 'Bookings'], ['/slots', '🕐', 'Slots']] as [string, string, string][]).map(([to, icon, label]) => (
             <NavLink key={to} to={to} end={to === '/'}
               className={({ isActive }) =>
-                `block px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-gold text-dark font-semibold' : 'text-muted hover:text-cream'}`}>
-              {label}
+                `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-gold text-dark font-semibold' : 'text-muted hover:text-cream'}`}>
+              <span>{icon}</span>{label}
             </NavLink>
           ))}
         </div>

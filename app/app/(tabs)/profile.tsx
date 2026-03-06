@@ -1,15 +1,30 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-         ActivityIndicator, Alert } from 'react-native';
+         ActivityIndicator, Alert, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { C, F } from '../../lib/theme';
 
+interface WalletTransaction {
+  id: string;
+  type: 'topup' | 'usage' | 'refund' | 'subscription';
+  amount: number;
+  description: string;
+  created_at: string;
+}
+
+interface WalletData {
+  balance: number;
+  transactions: WalletTransaction[];
+}
+
 export default function Profile() {
   const { user, logout, loadUser } = useAuthStore();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy]       = useState(false);
+  const [wallet, setWallet]   = useState<WalletData | null>(null);
+  const [portalBusy, setPortalBusy] = useState(false);
 
   const [firstName, setFirstName] = useState('');
   const [lastName,  setLastName]  = useState('');
@@ -22,8 +37,23 @@ export default function Profile() {
       setLastName(data.last_name   ?? '');
       setPhone(data.phone          ?? '');
       setAddress(data.address      ?? '');
-    });
+    }).catch(() => {});
+    api.get('/payments/wallet')
+      .then(({ data }) => setWallet(data))
+      .catch(() => {});
   }, []);
+
+  const openPortal = async () => {
+    setPortalBusy(true);
+    try {
+      const { data } = await api.post('/payments/portal');
+      await Linking.openURL(data.url);
+    } catch {
+      Alert.alert('Error', 'Could not open billing portal. Please try again.');
+    } finally {
+      setPortalBusy(false);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -100,6 +130,52 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Credit History */}
+      <View style={s.historyCard}>
+        <LinearGradient colors={[C.gold, 'transparent']} style={s.cardAccent}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />
+        <Text style={s.infoSectionLabel}>Credit History</Text>
+        {wallet !== null && (
+          <Text style={s.balanceLine}>
+            <Text style={s.balanceNum}>{wallet.balance}</Text>
+            <Text style={s.balanceSub}> credits remaining</Text>
+          </Text>
+        )}
+        {wallet === null ? (
+          <ActivityIndicator color={C.gold} style={{ marginVertical: 16 }} />
+        ) : wallet.transactions.length === 0 ? (
+          <Text style={s.infoEmpty}>No payment history yet</Text>
+        ) : (
+          wallet.transactions.slice(0, 20).map((tx) => {
+            const isTopup = tx.type === 'topup' || tx.type === 'subscription';
+            const isRefund = tx.type === 'refund';
+            const txIcon   = isRefund ? '↩' : tx.amount > 0 ? '+' : '−';
+            const txColor  = isRefund ? C.blue : tx.amount > 0 ? C.gold : C.red;
+            const amtStr   = (tx.amount > 0 ? '+' : '') + tx.amount;
+            const dateStr  = new Date(tx.created_at).toLocaleDateString('en-GB', {
+              day: 'numeric', month: 'short', year: 'numeric',
+            });
+            return (
+              <View key={tx.id} style={s.txRow}>
+                <View style={[s.txIconWrap, { backgroundColor: `${txColor}20` }]}>
+                  <Text style={[s.txIcon, { color: txColor }]}>{txIcon}</Text>
+                </View>
+                <View style={s.txMiddle}>
+                  <Text style={s.txDesc} numberOfLines={2}>{tx.description}</Text>
+                  <Text style={s.txDate}>{dateStr}</Text>
+                </View>
+                <Text style={[s.txAmount, { color: txColor }]}>{amtStr}</Text>
+              </View>
+            );
+          })
+        )}
+        <TouchableOpacity style={s.portalBtn} onPress={openPortal} disabled={portalBusy}>
+          {portalBusy
+            ? <ActivityIndicator color={C.gold} />
+            : <Text style={s.portalBtnText}>Manage subscription</Text>}
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity style={s.logoutBtn} onPress={logout}>
         <Text style={s.logoutText}>Sign out</Text>
@@ -194,4 +270,21 @@ const s = StyleSheet.create({
 
   logoutBtn:        { padding: 16, alignItems: 'center', marginTop: 8 },
   logoutText:       { color: C.muted, fontSize: 13 },
+
+  historyCard:      { backgroundColor: C.dark3, borderRadius: 22, padding: 20, marginBottom: 12,
+                      borderWidth: 1, borderColor: C.dark4, overflow: 'hidden' },
+  balanceLine:      { marginBottom: 12 },
+  balanceNum:       { fontSize: 22, fontWeight: '700', color: C.cream },
+  balanceSub:       { fontSize: 13, color: C.textDim },
+  txRow:            { flexDirection: 'row', alignItems: 'center', gap: 12,
+                      paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.dark4 },
+  txIconWrap:       { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  txIcon:           { fontSize: 15, fontWeight: '700' },
+  txMiddle:         { flex: 1 },
+  txDesc:           { color: C.cream, fontSize: 13 },
+  txDate:           { color: C.muted, fontSize: 11, marginTop: 2 },
+  txAmount:         { fontSize: 15, fontWeight: '700' },
+  portalBtn:        { marginTop: 16, backgroundColor: C.dark2, borderRadius: 12, padding: 13,
+                      alignItems: 'center', borderWidth: 1, borderColor: C.dark4 },
+  portalBtnText:    { color: C.gold, fontWeight: '600', fontSize: 14 },
 });
