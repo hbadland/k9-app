@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet,
          ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
-import { C, F } from '../../lib/theme';
+import { useColors } from '../../lib/useColors';
+import { F } from '../../lib/theme';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -14,6 +14,9 @@ const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 
 export default function Login() {
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy]         = useState(false);
@@ -29,7 +32,7 @@ export default function Login() {
     if (!email || !password) return;
     setBusy(true);
     try { await login(email.trim(), password); }
-    catch (e: any) { Alert.alert('Login failed', e?.response?.data?.error ?? 'Please try again.'); }
+    catch (e: any) { Alert.alert('Sign in failed', e?.response?.data?.error ?? 'Please try again.'); }
     finally { setBusy(false); }
   };
 
@@ -43,79 +46,73 @@ export default function Login() {
       await loginWithGoogle(idToken);
     } catch (e: any) {
       Alert.alert('Google sign-in failed', e?.response?.data?.error ?? e?.message ?? 'Please try again.');
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   };
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient colors={['#1F1C14', C.dark]} style={s.topGrad}
-        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
-
       <View style={s.inner}>
-        <Text style={s.brand}>
-          🐾 Battersea <Text style={s.brandAccent}>K9</Text>
-        </Text>
-        <Text style={s.sub}>Sign in to your account</Text>
+        <View style={s.brand}>
+          <Text style={s.brandName}>Battersea <Text style={s.brandAccent}>K9</Text></Text>
+          <Text style={s.brandTag}>Premium dog walking, London</Text>
+        </View>
 
         <View style={s.form}>
-          <TextInput style={s.input} placeholder="Email" placeholderTextColor={C.muted}
+          <TextInput style={s.input} placeholder="Email address" placeholderTextColor={C.muted}
             value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
           <TextInput style={s.input} placeholder="Password" placeholderTextColor={C.muted}
             value={password} onChangeText={setPassword} secureTextEntry />
-
-          <TouchableOpacity style={s.btn} onPress={submit} disabled={busy}>
-            <LinearGradient colors={[C.gold, C.goldLight]} style={s.btnGrad}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-              {busy
-                ? <ActivityIndicator color={C.dark} />
-                : <Text style={s.btnText}>Sign in</Text>
-              }
-            </LinearGradient>
+          <TouchableOpacity style={[s.btn, busy && s.btnDim]} onPress={submit} disabled={busy}>
+            {busy ? <ActivityIndicator color={C.dark} /> : <Text style={s.btnText}>Sign in</Text>}
           </TouchableOpacity>
         </View>
 
         <View style={s.dividerRow}>
-          <View style={s.dividerLine} />
-          <Text style={s.dividerText}>or continue with</Text>
-          <View style={s.dividerLine} />
+          <View style={s.dividerLine} /><Text style={s.dividerText}>or</Text><View style={s.dividerLine} />
         </View>
 
-        <TouchableOpacity style={s.googleBtn} onPress={handleGoogle} disabled={busy}>
-          <Text style={s.googleG}>G</Text>
-          <Text style={s.googleText}>Sign in with Google</Text>
+        <TouchableOpacity style={s.socialBtn} onPress={handleGoogle} disabled={busy}>
+          <Text style={s.socialG}>G</Text>
+          <Text style={s.socialText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        <Link href="/(auth)/register" style={s.link}>
-          Don't have an account? <Text style={s.linkAccent}>Register</Text>
-        </Link>
+        <View style={s.footer}>
+          <Link href="/(auth)/forgot-password">
+            <Text style={s.footerLink}>Forgot password?</Text>
+          </Link>
+          <Link href="/(auth)/register">
+            <Text style={s.footerText}>No account? <Text style={s.footerLink}>Register</Text></Text>
+          </Link>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: C.dark },
-  topGrad:     { position: 'absolute', top: 0, left: 0, right: 0, height: 240 },
-  inner:       { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
-  brand:       { fontSize: 34, color: C.cream, textAlign: 'center', marginBottom: 6, fontFamily: F.serif, fontWeight: '700' },
-  brandAccent: { color: C.gold, fontStyle: 'italic', fontFamily: F.serif },
-  sub:         { color: C.muted, textAlign: 'center', fontSize: 14, marginBottom: 36 },
-  form:        { marginBottom: 20 },
-  input:       { backgroundColor: C.dark3, color: C.cream, borderRadius: 14, padding: 16,
-                 marginBottom: 10, fontSize: 15, borderWidth: 1, borderColor: C.dark4 },
-  btn:         { borderRadius: 16, overflow: 'hidden', marginTop: 6 },
-  btnGrad:     { padding: 17, alignItems: 'center' },
-  btnText:     { color: C.dark, fontWeight: '700', fontSize: 15 },
-  dividerRow:  { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: C.dark4 },
-  dividerText: { color: C.muted, fontSize: 12, marginHorizontal: 10 },
-  googleBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                 backgroundColor: C.dark3, borderRadius: 14, padding: 15, marginBottom: 20,
-                 borderWidth: 1, borderColor: C.dark4 },
-  googleG:     { fontSize: 17, fontWeight: '700', color: '#4285F4', marginRight: 8 },
-  googleText:  { color: C.cream, fontSize: 15, fontWeight: '600' },
-  link:        { color: C.muted, textAlign: 'center', fontSize: 13 },
-  linkAccent:  { color: C.gold },
-});
+function makeStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    root:        { flex: 1, backgroundColor: C.dark },
+    inner:       { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
+    brand:       { alignItems: 'center', marginBottom: 48 },
+    brandName:   { fontFamily: F.serif, fontSize: 36, fontWeight: '700', color: C.cream, letterSpacing: -0.5 },
+    brandAccent: { color: C.gold, fontStyle: 'italic' },
+    brandTag:    { fontSize: 13, color: C.muted, marginTop: 6 },
+    form:        { marginBottom: 24 },
+    input:       { backgroundColor: C.dark3, color: C.cream, borderRadius: 14, paddingHorizontal: 18,
+                   paddingVertical: 16, marginBottom: 10, fontSize: 15, borderWidth: 1, borderColor: C.border },
+    btn:         { backgroundColor: C.gold, borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 4 },
+    btnDim:      { opacity: 0.7 },
+    btnText:     { color: C.dark, fontWeight: '700', fontSize: 15 },
+    dividerRow:  { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: C.border },
+    dividerText: { color: C.muted, fontSize: 12 },
+    socialBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                   backgroundColor: C.dark3, borderRadius: 14, paddingVertical: 15,
+                   marginBottom: 32, borderWidth: 1, borderColor: C.border, gap: 10 },
+    socialG:     { fontSize: 16, fontWeight: '700', color: '#4285F4' },
+    socialText:  { color: C.cream, fontSize: 15, fontWeight: '500' },
+    footer:      { gap: 14, alignItems: 'center' },
+    footerText:  { fontSize: 13, color: C.muted },
+    footerLink:  { fontSize: 13, color: C.gold },
+  });
+}

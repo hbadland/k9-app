@@ -1,4 +1,10 @@
+import sanitizeHtml from 'sanitize-html';
 import { pool } from '../config/db';
+
+function sanitize(text: string | undefined): string | undefined {
+  if (!text) return text;
+  return sanitizeHtml(text, { allowedTags: [], allowedAttributes: {} });
+}
 
 export interface Message {
   id: string;
@@ -31,7 +37,7 @@ export const createMessage = async (data: {
     `INSERT INTO messages (booking_id, sender_id, sender_role, body, photo_url, type)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
     [data.booking_id, data.sender_id, data.sender_role,
-     data.body ?? null, data.photo_url ?? null, data.type]
+     sanitize(data.body) ?? null, data.photo_url ?? null, data.type]
   );
   return rows[0];
 };

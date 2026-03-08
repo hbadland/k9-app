@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(psql:*)",
+      "Bash(ipconfig getifaddr en0)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(npx expo:*)",
+      "Bash(grep \"\"version\"\":*)",
+      "Bash(claude:*)",
+      "WebSearch",
+      "Bash(git:*)"
+    ]
+  }
+}

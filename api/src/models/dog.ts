@@ -16,6 +16,13 @@ export interface Dog {
   created_at: Date;
 }
 
+export const getDogById = async (id: string, ownerId: string): Promise<Dog | null> => {
+  const { rows } = await pool.query(
+    'SELECT * FROM dogs WHERE id = $1 AND owner_id = $2', [id, ownerId]
+  );
+  return rows[0] ?? null;
+};
+
 export const getDogsByOwner = async (ownerId: string): Promise<Dog[]> => {
   const { rows } = await pool.query(
     'SELECT * FROM dogs WHERE owner_id = $1 ORDER BY created_at',

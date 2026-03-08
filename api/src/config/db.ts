@@ -2,4 +2,10 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+  ...(process.env.NODE_ENV === 'production' && { ssl: { rejectUnauthorized: false } }),
+});

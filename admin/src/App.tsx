@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import Bookings from './pages/Bookings';
 import Slots from './pages/Slots';
+import Analytics from './pages/Analytics';
 
 function Layout() {
   const { user, logout } = useAuthStore();
@@ -18,7 +19,7 @@ function Layout() {
           <p className="text-muted text-xs mt-1">{user?.first_name ?? user?.email}</p>
         </div>
         <div className="space-y-1 flex-1">
-          {([['/', '📊', 'Dashboard'], ['/clients', '👥', 'Clients'], ['/bookings', '📅', 'Bookings'], ['/slots', '🕐', 'Slots']] as [string, string, string][]).map(([to, icon, label]) => (
+          {([['/', '📊', 'Dashboard'], ['/clients', '👥', 'Clients'], ['/bookings', '📅', 'Bookings'], ['/slots', '🕐', 'Slots'], ['/analytics', '📈', 'Analytics']] as [string, string, string][]).map(([to, icon, label]) => (
             <NavLink key={to} to={to} end={to === '/'}
               className={({ isActive }) =>
                 `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-gold text-dark font-semibold' : 'text-muted hover:text-cream'}`}>
@@ -34,6 +35,7 @@ function Layout() {
           <Route path="/clients" element={<Clients />} />
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/slots" element={<Slots />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

@@ -4,9 +4,19 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
+import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore } from '../store/themeStore';
 import { getAccessToken } from '../lib/auth';
 import { api } from '../lib/api';
+
+if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    tracesSampleRate: 0.2,
+  });
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -18,6 +28,8 @@ Notifications.setNotificationHandler({
 
 export default function RootLayout() {
   const { user, loading, loadUser } = useAuthStore();
+  const initTheme = useThemeStore((s) => s.init);
+  useEffect(() => { initTheme(); }, []);
   const router = useRouter();
   const segments = useSegments();
 
@@ -37,6 +49,30 @@ export default function RootLayout() {
       } catch {}
     })();
   }, [user?.id]);
+
+  // Navigate to booking when a push notification is tapped
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const bookingId = response.notification.request.content.data?.bookingId as string | undefined;
+      if (bookingId) {
+        router.push(`/booking/${bookingId}`);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Handle deep links (e.g. k9app://reset-password?token=... from email)
+  useEffect(() => {
+    // Handle link when app is already open
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url, router);
+    });
+    // Handle link that launched/resumed the app
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url, router);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -73,8 +109,17 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="dog/[id]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="booking/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="booking/map-replay" options={{ animation: 'slide_from_right' }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+function handleDeepLink(url: string, router: ReturnType<typeof useRouter>) {
+  const parsed = Linking.parse(url);
+  // k9app://reset-password?token=xxx
+  if (parsed.path === 'reset-password' && parsed.queryParams?.token) {
+    router.push(`/(auth)/reset-password?token=${parsed.queryParams.token}`);
+  }
 }

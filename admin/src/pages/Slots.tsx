@@ -15,12 +15,15 @@ function fmt(pence: number) {
   return `£${(pence / 100).toFixed(2)}`;
 }
 
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export default function Slots() {
   const [services, setServices]     = useState<Service[]>([]);
   const [slots, setSlots]           = useState<Slot[]>([]);
   const [loading, setLoading]       = useState(true);
+  const [tab, setTab]               = useState<'single' | 'bulk'>('single');
 
-  // Form state
+  // Single form state
   const [serviceId, setServiceId]   = useState('');
   const [date, setDate]             = useState('');
   const [start, setStart]           = useState('');
@@ -28,6 +31,12 @@ export default function Slots() {
   const [capacity, setCapacity]     = useState(1);
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState('');
+
+  // Bulk form state
+  const [bulkDays, setBulkDays]       = useState<number[]>([]);
+  const [bulkFromDate, setBulkFromDate] = useState('');
+  const [bulkToDate, setBulkToDate]   = useState('');
+  const [bulkSaving, setBulkSaving]   = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -70,13 +79,104 @@ export default function Slots() {
     setSlots(prev => prev.filter(s => s.id !== id));
   }
 
+  async function createBulk(e: React.FormEvent) {
+    e.preventDefault();
+    setErr('');
+    if (!bulkDays.length || !bulkFromDate || !bulkToDate || !start || !end || !serviceId) {
+      setErr('All fields required'); return;
+    }
+    setBulkSaving(true);
+    try {
+      const { data } = await api.post('/admin/slots/bulk', {
+        service_id: serviceId, days_of_week: bulkDays,
+        start_time: start, end_time: end, capacity,
+        from_date: bulkFromDate, to_date: bulkToDate,
+      });
+      const svc = services.find(s => s.id === serviceId);
+      const newSlots = data.slots.map((slot: Slot) => ({ ...slot, service_name: svc?.name ?? '', booked_count: 0 }));
+      setSlots(prev => [...prev, ...newSlots].sort((a, b) => a.date.localeCompare(b.date)));
+      alert(`Created ${data.created} slot(s)`);
+      setBulkDays([]); setBulkFromDate(''); setBulkToDate('');
+    } catch { setErr('Failed to create bulk slots.'); }
+    finally { setBulkSaving(false); }
+  }
+
   return (
     <div className="space-y-8">
       <h1 className="text-cream text-2xl font-bold">Availability Slots</h1>
 
+      {/* Tab toggle */}
+      <div className="flex gap-2">
+        {(['single', 'bulk'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold capitalize transition
+              ${tab === t ? 'bg-gold text-dark' : 'bg-dark3 text-muted hover:text-cream'}`}>
+            {t === 'single' ? 'Single Slot' : 'Recurring / Bulk'}
+          </button>
+        ))}
+      </div>
+
       {/* Create form */}
       <div className="bg-dark2 border border-dark3 rounded-xl p-6">
-        <h2 className="text-cream font-semibold mb-4">Add New Slot</h2>
+        <h2 className="text-cream font-semibold mb-4">{tab === 'single' ? 'Add New Slot' : 'Create Recurring Slots'}</h2>
+        {tab === 'bulk' && (
+          <form onSubmit={createBulk} className="grid grid-cols-2 gap-4 md:grid-cols-3 mb-0">
+            <div className="col-span-2 md:col-span-3">
+              <label className="text-muted text-xs uppercase tracking-wider block mb-2">Days of week</label>
+              <div className="flex gap-2 flex-wrap">
+                {DAYS.map((day, i) => (
+                  <button key={i} type="button"
+                    onClick={() => setBulkDays(prev => prev.includes(i) ? prev.filter(d => d !== i) : [...prev, i])}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition
+                      ${bulkDays.includes(i) ? 'bg-gold text-dark border-gold' : 'border-dark3 text-muted hover:text-cream'}`}>
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-muted text-xs uppercase tracking-wider block mb-1">From date</label>
+              <input type="date" value={bulkFromDate} onChange={e => setBulkFromDate(e.target.value)}
+                className="w-full bg-dark3 border border-dark4 rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold" />
+            </div>
+            <div>
+              <label className="text-muted text-xs uppercase tracking-wider block mb-1">To date</label>
+              <input type="date" value={bulkToDate} onChange={e => setBulkToDate(e.target.value)}
+                className="w-full bg-dark3 border border-dark4 rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold" />
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className="text-muted text-xs uppercase tracking-wider block mb-1">Service</label>
+              <select value={serviceId} onChange={e => setServiceId(e.target.value)}
+                className="w-full bg-dark3 border border-dark4 rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold">
+                {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-muted text-xs uppercase tracking-wider block mb-1">Start</label>
+              <input type="time" value={start} onChange={e => setStart(e.target.value)}
+                className="w-full bg-dark3 border border-dark4 rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold" />
+            </div>
+            <div>
+              <label className="text-muted text-xs uppercase tracking-wider block mb-1">End</label>
+              <input type="time" value={end} onChange={e => setEnd(e.target.value)}
+                className="w-full bg-dark3 border border-dark4 rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold" />
+            </div>
+            <div>
+              <label className="text-muted text-xs uppercase tracking-wider block mb-1">Capacity</label>
+              <input type="number" min={1} max={20} value={capacity} onChange={e => setCapacity(Number(e.target.value))}
+                className="w-full bg-dark3 border border-dark4 rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold" />
+            </div>
+            <div className="col-span-2 md:col-span-3 flex items-center gap-4">
+              <button type="submit" disabled={bulkSaving}
+                className="px-5 py-2 bg-gold text-dark font-semibold rounded-lg text-sm hover:opacity-90 transition disabled:opacity-50">
+                {bulkSaving ? 'Creating…' : 'Create Recurring Slots'}
+              </button>
+              {err && <p className="text-red-400 text-sm">{err}</p>}
+            </div>
+          </form>
+        )}
+
+        {tab === 'single' && (
         <form onSubmit={createSlot} className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <div className="col-span-2 md:col-span-1">
             <label className="text-muted text-xs uppercase tracking-wider block mb-1">Service</label>
@@ -120,6 +220,7 @@ export default function Slots() {
             {err && <p className="text-red-400 text-sm">{err}</p>}
           </div>
         </form>
+        )}
       </div>
 
       {/* Slots list */}

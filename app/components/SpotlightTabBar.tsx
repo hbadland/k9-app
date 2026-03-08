@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Pressable,
@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { C } from '../lib/theme';
+import { useColors } from '../lib/useColors';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const INDICATOR_W = 40;
@@ -28,21 +28,35 @@ const ICONS: Record<string, { on: IoniconName; off: IoniconName }> = {
 };
 
 export function SpotlightTabBar({ state, navigation }: BottomTabBarProps) {
+  const C = useColors();
+  const dynStyles = useMemo(() => ({
+    background:  { backgroundColor: `${C.dark}FA` as any },
+    topBorder:   { backgroundColor: C.border },
+    indicator:   {
+      backgroundColor: C.gold,
+      ...Platform.select({
+        ios: {
+          shadowColor: C.gold,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.8,
+          shadowRadius: 4,
+        },
+      }),
+    },
+  }), [C]);
+
   const insets = useSafeAreaInsets();
   const count = state.routes.length;
   const tabW = SCREEN_WIDTH / count;
 
-  // Sliding indicator position
   const indicatorX = useRef(
     new Animated.Value(tabIndX(state.index, tabW))
   ).current;
 
-  // Per-tab glow opacity values
   const glowValues = useRef(
     state.routes.map((_, i) => new Animated.Value(i === state.index ? 1 : 0))
   ).current;
 
-  // Icon colour interpolation values (0=inactive, 1=active)
   const colourValues = useRef(
     state.routes.map((_, i) => new Animated.Value(i === state.index ? 1 : 0))
   ).current;
@@ -68,7 +82,7 @@ export function SpotlightTabBar({ state, navigation }: BottomTabBarProps) {
       Animated.timing(colourValues[i], {
         toValue: i === idx ? 1 : 0,
         duration: 200,
-        useNativeDriver: false, // colour interpolation needs JS driver
+        useNativeDriver: false,
       }).start();
     });
   }, [state.index]);
@@ -77,18 +91,19 @@ export function SpotlightTabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={[styles.outer, { paddingBottom: bottomPad }]}>
-      {/* Blur-ish background */}
+      {/* Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: `${C.dark}F5` }]} />
+        <View style={[StyleSheet.absoluteFill, dynStyles.background]} />
       </View>
 
       {/* Top border */}
-      <View style={styles.topBorder} />
+      <View style={[styles.topBorderBase, dynStyles.topBorder]} />
 
       {/* Sliding gold indicator line */}
       <Animated.View
         style={[
-          styles.indicator,
+          styles.indicatorBase,
+          dynStyles.indicator,
           { transform: [{ translateX: indicatorX }] },
         ]}
       />
@@ -151,26 +166,15 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: 'transparent',
   },
-  topBorder: {
+  topBorderBase: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  indicator: {
+  indicatorBase: {
     position: 'absolute',
     top: 0,
     width: INDICATOR_W,
     height: 2,
-    backgroundColor: C.gold,
     borderRadius: 1,
-    // soft glow on the line itself
-    ...Platform.select({
-      ios: {
-        shadowColor: C.gold,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 4,
-      },
-    }),
   },
   tabRow: {
     flexDirection: 'row',

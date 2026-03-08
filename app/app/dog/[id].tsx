@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { api } from '../../lib/api';
-import { C, F } from '../../lib/theme';
+import { useColors } from '../../lib/useColors';
+import { F } from '../../lib/theme';
 
 interface Dog {
   id: string; name: string; breed: string | null; age_months: number | null;
@@ -18,6 +18,9 @@ interface Dog {
 }
 
 export default function DogProfile() {
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+
   const { id }  = useLocalSearchParams<{ id: string }>();
   const router  = useRouter();
 
@@ -26,7 +29,6 @@ export default function DogProfile() {
   const [saving,  setSaving]  = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // form state
   const [name,      setName]      = useState('');
   const [breed,     setBreed]     = useState('');
   const [ageMonths, setAgeMonths] = useState('');
@@ -73,7 +75,6 @@ export default function DogProfile() {
       quality: 0.8,
     });
     if (result.canceled) return;
-    // Resize to 400×400 and convert to base64 to keep payload small
     const manipulated = await ImageManipulator.manipulateAsync(
       result.assets[0].uri,
       [{ resize: { width: 400, height: 400 } }],
@@ -161,48 +162,45 @@ export default function DogProfile() {
               </View>
             )}
             <View style={s.avatarBadge}>
-              <Text style={s.avatarBadgeText}>📷</Text>
+              <Text style={s.avatarBadgeText}>+</Text>
             </View>
           </TouchableOpacity>
           <Text style={s.avatarHint}>Tap to change photo</Text>
         </View>
 
         {/* Basic info */}
-        <SectionLabel label="Basic info" />
-        <Field label="Name *"        value={name}      onChange={setName} />
-        <Field label="Breed"         value={breed}     onChange={setBreed} />
-        <Field label="Age (months)"  value={ageMonths} onChange={setAgeMonths} numeric />
+        <SectionLabel C={C} label="Basic info" />
+        <Field C={C} label="Name *"        value={name}      onChange={setName} />
+        <Field C={C} label="Breed"         value={breed}     onChange={setBreed} />
+        <Field C={C} label="Age (months)"  value={ageMonths} onChange={setAgeMonths} numeric />
 
         {/* Vet */}
-        <SectionLabel label="Vet details" />
-        <Field label="Vet name"  value={vetName}  onChange={setVetName} />
-        <Field label="Vet phone" value={vetPhone} onChange={setVetPhone} phone />
+        <SectionLabel C={C} label="Vet details" />
+        <Field C={C} label="Vet name"  value={vetName}  onChange={setVetName} />
+        <Field C={C} label="Vet phone" value={vetPhone} onChange={setVetPhone} phone />
 
         {/* Notes */}
-        <SectionLabel label="Notes" />
-        <Field label="Medical notes"      value={medNotes} onChange={setMedNotes} multiline />
-        <Field label="Behavioural notes"  value={behNotes} onChange={setBehNotes} multiline />
+        <SectionLabel C={C} label="Notes" />
+        <Field C={C} label="Medical notes"      value={medNotes} onChange={setMedNotes} multiline />
+        <Field C={C} label="Behavioural notes"  value={behNotes} onChange={setBehNotes} multiline />
 
         {/* Save */}
-        <TouchableOpacity style={s.saveBtn} onPress={save} disabled={saving}>
-          <LinearGradient
-            colors={[C.gold, C.goldLight]}
-            style={s.saveBtnGrad}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          >
-            {saving
-              ? <ActivityIndicator color={C.dark} />
-              : <Text style={s.saveBtnText}>Save changes</Text>
-            }
-          </LinearGradient>
+        <TouchableOpacity
+          style={[s.saveBtn, saving && { opacity: 0.7 }]}
+          onPress={save} disabled={saving}
+        >
+          {saving
+            ? <ActivityIndicator color={C.dark} />
+            : <Text style={s.saveBtnText}>Save changes</Text>
+          }
         </TouchableOpacity>
 
         {/* Track */}
         <TouchableOpacity
           style={s.trackBtn}
-          onPress={() => router.push({ pathname: '/(tabs)/tracking', params: { dogId: id } })}
+          onPress={() => router.push({ pathname: '/(tabs)/tracking', params: { dogId: id, dogName: name } })}
         >
-          <Text style={s.trackBtnText}>📍  Track live location</Text>
+          <Text style={s.trackBtnText}>Track live location</Text>
         </TouchableOpacity>
 
         {/* Delete */}
@@ -219,21 +217,27 @@ export default function DogProfile() {
   );
 }
 
-function SectionLabel({ label }: { label: string }) {
-  return <Text style={sl.label}>{label}</Text>;
+function SectionLabel({ C, label }: { C: ReturnType<typeof useColors>; label: string }) {
+  return (
+    <Text style={{
+      fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.8, color: C.gold,
+      marginTop: 20, marginBottom: 8, opacity: 0.8,
+    }}>
+      {label}
+    </Text>
+  );
 }
-const sl = StyleSheet.create({
-  label: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.8, color: C.gold,
-           marginTop: 20, marginBottom: 8, opacity: 0.8 },
-});
 
-function Field({ label, value, onChange, numeric, phone, multiline }: {
-  label: string; value: string; onChange: (v: string) => void;
-  numeric?: boolean; phone?: boolean; multiline?: boolean;
+function Field({ C, label, value, onChange, numeric, phone, multiline }: {
+  C: ReturnType<typeof useColors>; label: string; value: string;
+  onChange: (v: string) => void; numeric?: boolean; phone?: boolean; multiline?: boolean;
 }) {
   return (
     <TextInput
-      style={[fi.input, multiline && { height: 80, textAlignVertical: 'top' }]}
+      style={[{
+        backgroundColor: C.dark2, color: C.cream, borderRadius: 14, padding: 14,
+        marginBottom: 8, fontSize: 14, borderWidth: 1, borderColor: C.dark4,
+      }, multiline && { height: 80, textAlignVertical: 'top' }]}
       placeholder={label} placeholderTextColor={C.muted}
       value={value} onChangeText={onChange}
       keyboardType={numeric ? 'numeric' : phone ? 'phone-pad' : 'default'}
@@ -241,44 +245,42 @@ function Field({ label, value, onChange, numeric, phone, multiline }: {
     />
   );
 }
-const fi = StyleSheet.create({
-  input: { backgroundColor: C.dark2, color: C.cream, borderRadius: 14, padding: 14,
-           marginBottom: 8, fontSize: 14, borderWidth: 1, borderColor: C.dark4 },
-});
 
-const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: C.dark },
-  center:  { flex: 1, backgroundColor: C.dark, alignItems: 'center', justifyContent: 'center' },
+function makeStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    root:    { flex: 1, backgroundColor: C.dark },
+    center:  { flex: 1, backgroundColor: C.dark, alignItems: 'center', justifyContent: 'center' },
 
-  header:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-             paddingTop: 64, paddingHorizontal: 20, paddingBottom: 16 },
-  back:    { fontSize: 17, color: C.gold, width: 52 },
-  title:   { fontSize: 18, fontWeight: '700', color: C.cream, fontFamily: F.serif },
+    header:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+               paddingTop: 64, paddingHorizontal: 20, paddingBottom: 16 },
+    back:    { fontSize: 17, color: C.gold, width: 52 },
+    title:   { fontSize: 18, fontWeight: '700', color: C.cream, fontFamily: F.serif },
 
-  content: { paddingHorizontal: 20, paddingBottom: 20 },
+    content: { paddingHorizontal: 20, paddingBottom: 20 },
 
-  avatarWrap:        { alignItems: 'center', marginVertical: 20 },
-  avatarImg:         { width: 110, height: 110, borderRadius: 55,
-                       borderWidth: 3, borderColor: `${C.gold}59` },
-  avatarPlaceholder: { width: 110, height: 110, borderRadius: 55, backgroundColor: C.dark3,
-                       borderWidth: 3, borderColor: `${C.gold}59`,
-                       alignItems: 'center', justifyContent: 'center' },
-  avatarInitial:     { fontSize: 44, fontWeight: '700', color: C.gold, fontFamily: F.serif },
-  avatarBadge:       { position: 'absolute', bottom: 4, right: 4,
-                       backgroundColor: C.dark2, borderRadius: 14, padding: 5,
-                       borderWidth: 1, borderColor: C.dark4 },
-  avatarBadgeText:   { fontSize: 16 },
-  avatarHint:        { marginTop: 8, fontSize: 12, color: C.muted },
+    avatarWrap:        { alignItems: 'center', marginVertical: 20 },
+    avatarImg:         { width: 110, height: 110, borderRadius: 55,
+                         borderWidth: 3, borderColor: C.goldBorder },
+    avatarPlaceholder: { width: 110, height: 110, borderRadius: 55, backgroundColor: C.dark3,
+                         borderWidth: 3, borderColor: C.goldBorder,
+                         alignItems: 'center', justifyContent: 'center' },
+    avatarInitial:     { fontSize: 44, fontWeight: '700', color: C.gold, fontFamily: F.serif },
+    avatarBadge:       { position: 'absolute', bottom: 4, right: 4,
+                         backgroundColor: C.dark2, borderRadius: 14, padding: 6,
+                         borderWidth: 1, borderColor: C.border,
+                         width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+    avatarBadgeText:   { fontSize: 16, fontWeight: '700', color: C.gold, lineHeight: 18 },
+    avatarHint:        { marginTop: 8, fontSize: 12, color: C.muted },
 
-  saveBtn:     { borderRadius: 16, overflow: 'hidden', marginTop: 16 },
-  saveBtnGrad: { padding: 16, alignItems: 'center' },
-  saveBtnText: { color: C.dark, fontWeight: '700', fontSize: 15 },
+    saveBtn:     { backgroundColor: C.gold, borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 16 },
+    saveBtnText: { color: C.dark, fontWeight: '700', fontSize: 15 },
 
-  trackBtn:      { marginTop: 10, padding: 16, alignItems: 'center',
-                   borderRadius: 16, borderWidth: 1, borderColor: `${C.gold}40` },
-  trackBtnText:  { color: C.gold, fontSize: 14, fontWeight: '600' },
+    trackBtn:      { marginTop: 10, padding: 16, alignItems: 'center',
+                     borderRadius: 16, borderWidth: 1, borderColor: C.goldBorder },
+    trackBtnText:  { color: C.gold, fontSize: 14, fontWeight: '600' },
 
-  deleteBtn:     { marginTop: 10, padding: 16, alignItems: 'center',
-                   borderRadius: 16, borderWidth: 1, borderColor: `${C.red}40` },
-  deleteBtnText: { color: C.red, fontSize: 14, fontWeight: '600' },
-});
+    deleteBtn:     { marginTop: 10, padding: 16, alignItems: 'center',
+                     borderRadius: 16, borderWidth: 1, borderColor: C.redSoft },
+    deleteBtnText: { color: C.red, fontSize: 14, fontWeight: '600' },
+  });
+}

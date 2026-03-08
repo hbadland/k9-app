@@ -6,9 +6,11 @@
     "kill": "lsof -ti :3000 | xargs kill -9 && echo 'Port 3000 freed'",
     "build": "tsc",
     "start": "node dist/index.js",
-    "migrate": "psql $DATABASE_URL -f migrations/001_init.sql && psql $DATABASE_URL -f migrations/002_dog_details.sql && psql $DATABASE_URL -f migrations/003_bookings.sql && psql $DATABASE_URL -f migrations/004_payments.sql && psql $DATABASE_URL -f migrations/005_oauth.sql && psql $DATABASE_URL -f migrations/006_locations.sql"
+    "migrate": "psql $DATABASE_URL -f migrations/001_init.sql && psql $DATABASE_URL -f migrations/002_dog_details.sql && psql $DATABASE_URL -f migrations/003_bookings.sql && psql $DATABASE_URL -f migrations/004_payments.sql && psql $DATABASE_URL -f migrations/005_oauth.sql && psql $DATABASE_URL -f migrations/006_locations.sql && psql $DATABASE_URL -f migrations/007_messages.sql && psql $DATABASE_URL -f migrations/008_password_reset.sql && psql $DATABASE_URL -f migrations/009_user_avatar.sql && psql $DATABASE_URL -f migrations/010_walk_reports.sql && psql $DATABASE_URL -f migrations/011_reviews.sql"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1004.0",
+    "@sentry/node": "^10.42.0",
     "apple-signin-auth": "^1.7.9",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
@@ -18,7 +20,11 @@
     "google-auth-library": "^9.15.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
     "pg": "^8.12.0",
+    "resend": "^6.9.3",
+    "sanitize-html": "^2.17.1",
     "socket.io": "^4.8.1",
     "stripe": "^20.4.0",
     "zod": "^3.23.8"
@@ -28,8 +34,11 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.11.6",
     "@types/react": "~19.1.10",
+    "@types/sanitize-html": "^2.16.1",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.5.3"
   }

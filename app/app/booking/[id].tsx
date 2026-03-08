@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, Image,
@@ -9,7 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 import { getSocket, disconnectSocket } from '../../lib/socket';
-import { C, F } from '../../lib/theme';
+import { useColors } from '../../lib/useColors';
+import { F } from '../../lib/theme';
 
 interface Message {
   id: string;
@@ -30,15 +31,8 @@ interface Booking {
   slot_date: string;
   slot_start: string;
   slot_end: string;
+  notes: string | null;
 }
-
-const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
-  pending:     { bg: `${C.amber}26`,  text: C.amber },
-  confirmed:   { bg: `${C.green}21`,  text: C.green },
-  in_progress: { bg: `${C.blue}26`,   text: C.blue },
-  completed:   { bg: `${C.gold}21`,   text: C.gold },
-  cancelled:   { bg: `${C.red}21`,    text: C.red },
-};
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -59,6 +53,17 @@ function calcDuration(start: string, end: string) {
 }
 
 export default function BookingChat() {
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+
+  const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
+    pending:     { bg: C.amberSoft,  text: C.amber },
+    confirmed:   { bg: C.greenSoft,  text: C.green },
+    in_progress: { bg: C.goldSoft,   text: C.gold },
+    completed:   { bg: C.goldSoft,   text: C.gold },
+    cancelled:   { bg: C.redSoft,    text: C.red },
+  };
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -70,7 +75,6 @@ export default function BookingChat() {
   const [loading, setLoading]   = useState(true);
   const flatRef = useRef<FlatList>(null);
 
-  // Load booking + messages
   useEffect(() => {
     if (!id) return;
     Promise.all([
@@ -82,7 +86,6 @@ export default function BookingChat() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [id]);
 
-  // Socket subscription
   useEffect(() => {
     if (!id) return;
     let socket: ReturnType<typeof getSocket> | null = null;
@@ -95,7 +98,7 @@ export default function BookingChat() {
     getAccessToken().then(token => {
       if (!token) return;
       socket = getSocket(token);
-      socket.off('message:new');        // clear any stale listeners from previous mount
+      socket.off('message:new');
       socket.emit('subscribe:booking', { bookingId: id });
       socket.on('message:new', handler);
     });
@@ -106,7 +109,6 @@ export default function BookingChat() {
     };
   }, [id]);
 
-  // Scroll to bottom on initial load
   useEffect(() => {
     if (!loading && messages.length > 0) {
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 200);
@@ -119,7 +121,6 @@ export default function BookingChat() {
     try {
       await api.post(`/bookings/${id}/messages`, { body: body.trim() });
       setBody('');
-      // Socket will fire message:new — don't add locally to avoid duplicates
     } catch {}
     finally { setSending(false); }
   };
@@ -134,7 +135,7 @@ export default function BookingChat() {
     if (isAdmin && isUpdate) {
       return (
         <View style={s.updateBubble}>
-          <Text style={s.updateLabel}>📸 Update</Text>
+          <Text style={s.updateLabel}>Walk update</Text>
           {item.body ? <Text style={s.updateBody}>{item.body}</Text> : null}
           {item.photo_url ? (
             <Image source={{ uri: item.photo_url }} style={s.updatePhoto} resizeMode="cover" />
@@ -188,26 +189,34 @@ export default function BookingChat() {
 
       {/* Booking info card */}
       {booking && (
-        <View style={s.infoCard}>
-          <View style={s.infoLeft}>
-            <Text style={s.infoDog}>{booking.dog_name}</Text>
-            <Text style={s.infoMeta}>
-              {fmtDate(booking.slot_date)} · {booking.slot_start.slice(0,5)}–{booking.slot_end.slice(0,5)}
-            </Text>
-            <Text style={s.infoService}>{booking.service_name}</Text>
+        <>
+          <View style={s.infoCard}>
+            <View style={s.infoLeft}>
+              <Text style={s.infoDog}>{booking.dog_name}</Text>
+              <Text style={s.infoMeta}>
+                {fmtDate(booking.slot_date)} · {booking.slot_start.slice(0,5)}–{booking.slot_end.slice(0,5)}
+              </Text>
+              <Text style={s.infoService}>{booking.service_name}</Text>
+            </View>
+            {(() => {
+              const st = STATUS_STYLE[booking.status] ?? STATUS_STYLE.pending;
+              const label = booking.status === 'in_progress' ? 'Live' :
+                booking.status.charAt(0).toUpperCase() + booking.status.slice(1);
+              return (
+                <View style={[s.badge, { backgroundColor: st.bg }]}>
+                  {booking.status === 'in_progress' && <View style={s.liveDot} />}
+                  <Text style={[s.badgeText, { color: st.text }]}>{label}</Text>
+                </View>
+              );
+            })()}
           </View>
-          {(() => {
-            const st = STATUS_STYLE[booking.status] ?? STATUS_STYLE.pending;
-            return (
-              <View style={[s.badge, { backgroundColor: st.bg }]}>
-                <Text style={[s.badgeText, { color: st.text }]}>
-                  {booking.status === 'in_progress' ? 'Live 🔴' :
-                   booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                </Text>
-              </View>
-            );
-          })()}
-        </View>
+          {booking.notes ? (
+            <View style={s.notesCard}>
+              <Text style={s.notesLabel}>Your notes</Text>
+              <Text style={s.notesText}>{booking.notes}</Text>
+            </View>
+          ) : null}
+        </>
       )}
 
       {/* Walk Report — shown when completed */}
@@ -231,6 +240,9 @@ export default function BookingChat() {
               ))}
             </ScrollView>
           )}
+          <TouchableOpacity style={s.replayBtn} onPress={() => router.push(`/booking/map-replay?id=${booking.id}`)}>
+            <Text style={s.replayBtnText}>View GPS Route Replay</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -267,7 +279,7 @@ export default function BookingChat() {
           >
             {sending
               ? <ActivityIndicator color={C.dark} size="small" />
-              : <Text style={s.sendText}>➤</Text>
+              : <Text style={s.sendText}>›</Text>
             }
           </TouchableOpacity>
         </View>
@@ -276,75 +288,78 @@ export default function BookingChat() {
   );
 }
 
-const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: C.dark },
+function makeStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    root:         { flex: 1, backgroundColor: C.dark },
 
-  // Header
-  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                  backgroundColor: C.dark2, paddingHorizontal: 16, paddingBottom: 14,
-                  borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  backBtn:      { width: 36, height: 36, borderRadius: 12, backgroundColor: C.dark3,
-                  alignItems: 'center', justifyContent: 'center' },
-  backText:     { color: C.cream, fontSize: 22, lineHeight: 26 },
-  headerTitle:  { fontSize: 16, fontWeight: '700', color: C.cream, fontFamily: F.serif },
+    header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    backgroundColor: C.dark2, paddingHorizontal: 16, paddingBottom: 14,
+                    borderBottomWidth: 1, borderBottomColor: C.border },
+    backBtn:      { width: 36, height: 36, borderRadius: 12, backgroundColor: C.dark3,
+                    alignItems: 'center', justifyContent: 'center' },
+    backText:     { color: C.cream, fontSize: 22, lineHeight: 26 },
+    headerTitle:  { fontSize: 16, fontWeight: '700', color: C.cream, fontFamily: F.serif },
 
-  // Info card
-  infoCard:     { backgroundColor: C.dark3, marginHorizontal: 16, marginTop: 12,
-                  borderRadius: 16, padding: 14, flexDirection: 'row',
-                  alignItems: 'center', justifyContent: 'space-between',
-                  borderWidth: 1, borderColor: C.dark4 },
-  infoLeft:     { flex: 1 },
-  infoDog:      { fontSize: 15, fontWeight: '700', color: C.cream },
-  infoMeta:     { fontSize: 11, color: C.textDim, marginTop: 2 },
-  infoService:  { fontSize: 11, color: C.gold, marginTop: 2 },
-  badge:        { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  badgeText:    { fontSize: 11, fontWeight: '600' },
+    infoCard:     { backgroundColor: C.dark3, marginHorizontal: 16, marginTop: 12,
+                    borderRadius: 16, padding: 14, flexDirection: 'row',
+                    alignItems: 'center', justifyContent: 'space-between',
+                    borderWidth: 1, borderColor: C.border },
+    infoLeft:     { flex: 1 },
+    infoDog:      { fontSize: 15, fontWeight: '700', color: C.cream },
+    infoMeta:     { fontSize: 11, color: C.textDim, marginTop: 2 },
+    infoService:  { fontSize: 11, color: C.gold, marginTop: 2 },
+    badge:        { flexDirection: 'row', alignItems: 'center', gap: 5,
+                    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    badgeText:    { fontSize: 11, fontWeight: '600' },
+    liveDot:      { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
 
-  // Walk report
-  reportCard:   { backgroundColor: `${C.gold}14`, borderWidth: 1, borderColor: `${C.gold}33`,
-                  marginHorizontal: 16, marginTop: 10, borderRadius: 16, padding: 14 },
-  reportTitle:  { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1.5,
-                  color: C.gold, marginBottom: 10 },
-  reportRow:    { flexDirection: 'row', gap: 24, marginBottom: 10 },
-  reportItem:   { alignItems: 'center' },
-  reportVal:    { fontSize: 18, fontWeight: '700', color: C.cream },
-  reportLbl:    { fontSize: 10, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
-  photoScroll:  { marginTop: 4 },
-  reportPhoto:  { width: 100, height: 100, borderRadius: 10, marginRight: 8 },
+    reportCard:   { backgroundColor: C.goldSoft, borderWidth: 1, borderColor: C.goldBorder,
+                    marginHorizontal: 16, marginTop: 10, borderRadius: 16, padding: 14 },
+    reportTitle:  { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1.5,
+                    color: C.gold, marginBottom: 10 },
+    reportRow:    { flexDirection: 'row', gap: 24, marginBottom: 10 },
+    reportItem:   { alignItems: 'center' },
+    reportVal:    { fontSize: 18, fontWeight: '700', color: C.cream },
+    reportLbl:    { fontSize: 10, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
+    photoScroll:  { marginTop: 4 },
+    reportPhoto:  { width: 100, height: 100, borderRadius: 10, marginRight: 8 },
+    replayBtn:    { marginTop: 12, backgroundColor: C.dark2, borderRadius: 12, padding: 12,
+                    alignItems: 'center', borderWidth: 1, borderColor: C.border },
+    replayBtnText: { color: C.gold, fontSize: 13, fontWeight: '600' },
+    notesCard:    { backgroundColor: C.dark2, marginHorizontal: 16, marginTop: 8,
+                    borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border },
+    notesLabel:   { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: C.muted, marginBottom: 6 },
+    notesText:    { color: C.cream, fontSize: 13, lineHeight: 20 },
 
-  // Messages
-  list:         { padding: 16, gap: 10 },
-  empty:        { color: C.muted, fontSize: 13, textAlign: 'center', marginTop: 32, lineHeight: 20 },
+    list:         { padding: 16, gap: 10 },
+    empty:        { color: C.muted, fontSize: 13, textAlign: 'center', marginTop: 32, lineHeight: 20 },
 
-  // Update bubble (admin, type=update)
-  updateBubble: { backgroundColor: C.dark3, borderLeftWidth: 3, borderLeftColor: C.gold,
-                  borderRadius: 14, padding: 12, maxWidth: '85%' },
-  updateLabel:  { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1,
-                  color: C.gold, marginBottom: 6 },
-  updateBody:   { fontSize: 14, color: C.cream, lineHeight: 20 },
-  updatePhoto:  { width: '100%', height: 180, borderRadius: 10, marginTop: 8 },
+    updateBubble: { backgroundColor: C.dark3, borderLeftWidth: 3, borderLeftColor: C.gold,
+                    borderRadius: 14, padding: 12, maxWidth: '85%' },
+    updateLabel:  { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1,
+                    color: C.gold, marginBottom: 6 },
+    updateBody:   { fontSize: 14, color: C.cream, lineHeight: 20 },
+    updatePhoto:  { width: '100%', height: 180, borderRadius: 10, marginTop: 8 },
 
-  // Admin chat bubble
-  adminBubble:  { backgroundColor: C.dark3, borderLeftWidth: 3, borderLeftColor: C.blue,
-                  borderRadius: 14, padding: 12, maxWidth: '85%' },
-  adminBody:    { fontSize: 14, color: C.cream, lineHeight: 20 },
+    adminBubble:  { backgroundColor: C.dark3, borderLeftWidth: 3, borderLeftColor: C.blue,
+                    borderRadius: 14, padding: 12, maxWidth: '85%' },
+    adminBody:    { fontSize: 14, color: C.cream, lineHeight: 20 },
 
-  // Owner bubble
-  ownerBubbleWrap: { alignItems: 'flex-end' },
-  ownerBubble:  { backgroundColor: `${C.gold}CC`, borderRadius: 14, padding: 12, maxWidth: '75%' },
-  ownerBody:    { fontSize: 14, color: C.dark, fontWeight: '500', lineHeight: 20 },
+    ownerBubbleWrap: { alignItems: 'flex-end' },
+    ownerBubble:  { backgroundColor: C.gold, borderRadius: 14, padding: 12, maxWidth: '75%' },
+    ownerBody:    { fontSize: 14, color: C.dark, fontWeight: '500', lineHeight: 20 },
 
-  msgTime:      { fontSize: 10, color: C.muted, marginTop: 4, textAlign: 'right' },
+    msgTime:      { fontSize: 10, color: C.muted, marginTop: 4, textAlign: 'right' },
 
-  // Input
-  inputRow:     { flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-                  paddingHorizontal: 16, paddingTop: 10,
-                  backgroundColor: C.dark2, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
-  input:        { flex: 1, backgroundColor: C.dark3, borderWidth: 1, borderColor: C.dark4,
-                  borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12,
-                  color: C.cream, fontSize: 14, maxHeight: 120 },
-  sendBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: C.gold,
-                  alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { opacity: 0.4 },
-  sendText:     { color: C.dark, fontSize: 18, fontWeight: '700' },
-});
+    inputRow:     { flexDirection: 'row', alignItems: 'flex-end', gap: 10,
+                    paddingHorizontal: 16, paddingTop: 10,
+                    backgroundColor: C.dark2, borderTopWidth: 1, borderTopColor: C.border },
+    input:        { flex: 1, backgroundColor: C.dark3, borderWidth: 1, borderColor: C.border,
+                    borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12,
+                    color: C.cream, fontSize: 14, maxHeight: 120 },
+    sendBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: C.gold,
+                    alignItems: 'center', justifyContent: 'center' },
+    sendBtnDisabled: { opacity: 0.4 },
+    sendText:     { color: C.dark, fontSize: 22, fontWeight: '700', lineHeight: 26 },
+  });
+}

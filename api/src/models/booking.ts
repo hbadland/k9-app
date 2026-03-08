@@ -1,4 +1,7 @@
 import { pool } from '../config/db';
+import { sendPush } from '../utils/push';
+import { sendEmail } from '../utils/email';
+import { bookingReminderEmail } from '../utils/emailTemplates';
 
 export interface Service {
   id: string; name: string; description: string | null;
@@ -184,33 +187,60 @@ export const createBooking = async (data: {
   }
 };
 
-export const cancelBooking = async (id: string, ownerId: string): Promise<boolean> => {
+export const cancelBooking = async (
+  id: string, ownerId: string
+): Promise<{ refunded: boolean; booking: Booking | null } | null> => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const { rowCount } = await client.query(
-      `UPDATE bookings SET status = 'cancelled'
-       WHERE id = $1 AND owner_id = $2 AND status IN ('pending','confirmed')`,
-      [id, ownerId]
+    // Fetch booking with slot time so we can check the 24h window
+    const { rows: bookingRows } = await client.query(`
+      SELECT b.*, s.date AS slot_date, s.start_time AS slot_start,
+             sv.name AS service_name, d.name AS dog_name
+      FROM bookings b
+      JOIN availability_slots s ON s.id = b.slot_id
+      JOIN services sv ON sv.id = s.service_id
+      JOIN dogs d ON d.id = b.dog_id
+      WHERE b.id = $1 AND b.owner_id = $2 AND b.status IN ('pending','confirmed')
+    `, [id, ownerId]);
+
+    if (!bookingRows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const booking = bookingRows[0] as Booking;
+    const slotDatetime = new Date(`${booking.slot_date}T${booking.slot_start}`);
+    const hoursUntilWalk = (slotDatetime.getTime() - Date.now()) / (1000 * 60 * 60);
+    const eligibleForRefund = hoursUntilWalk > 24;
+
+    await client.query(
+      "UPDATE bookings SET status = 'cancelled' WHERE id = $1",
+      [id]
     );
 
-    if ((rowCount ?? 0) > 0) {
-      // Refund 1 credit
+    let refunded = false;
+    if (eligibleForRefund) {
       const { rows: walletRows } = await client.query(
         'UPDATE wallets SET balance = balance + 1, updated_at = NOW() WHERE user_id = $1 RETURNING id',
         [ownerId]
       );
       if (walletRows[0]) {
         await client.query(
-          "INSERT INTO wallet_transactions (wallet_id, amount, type, description) VALUES ($1, 1, 'refund', 'Booking cancelled')",
+          "INSERT INTO wallet_transactions (wallet_id, amount, type, description) VALUES ($1, 1, 'refund', 'Cancellation refund')",
           [walletRows[0].id]
         );
+        refunded = true;
       }
     }
 
     await client.query('COMMIT');
-    return (rowCount ?? 0) > 0;
+
+    // Notify first person on waitlist for this slot (fire-and-forget)
+    notifyWaitlist(bookingRows[0].slot_id, booking).catch(() => {});
+
+    return { refunded, booking };
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
@@ -219,13 +249,45 @@ export const cancelBooking = async (id: string, ownerId: string): Promise<boolea
   }
 };
 
+async function notifyWaitlist(slotId: string, booking: Booking) {
+  const { rows } = await pool.query(`
+    SELECT sw.user_id, u.email, u.first_name, u.expo_push_token,
+           d.name AS dog_name
+    FROM slot_waitlist sw
+    JOIN users u ON u.id = sw.user_id
+    JOIN dogs d ON d.id = sw.dog_id
+    WHERE sw.slot_id = $1
+    ORDER BY sw.created_at ASC
+    LIMIT 1
+  `, [slotId]);
+
+  if (!rows[0]) return;
+
+  const { email, first_name, expo_push_token, dog_name } = rows[0];
+
+  const slotLabel = `${booking.slot_date} at ${booking.slot_start}`;
+  const message = `A spot just opened up for ${slotLabel}. Book now before it fills!`;
+
+  if (expo_push_token) {
+    await sendPush(expo_push_token, 'Spot available!', message);
+  }
+
+  await sendEmail({
+    to: email,
+    subject: `Good news — a spot opened up for ${dog_name}!`,
+    html: `<p>Hi ${first_name},</p><p>${message}</p><p>Open the Battersea K9 app to book your spot.</p>`,
+  });
+}
+
 export const getAllBookings = async (): Promise<Booking[]> => {
   const { rows } = await pool.query(`
     SELECT b.*, sv.name AS service_name, sv.type AS service_type,
            s.date AS slot_date, s.start_time AS slot_start, s.end_time AS slot_end,
            d.name AS dog_name,
            u.email AS owner_email,
-           CONCAT(u.first_name, ' ', u.last_name) AS owner_name
+           CONCAT(u.first_name, ' ', u.last_name) AS owner_name,
+           u.address AS owner_address,
+           u.phone AS owner_phone
     FROM bookings b
     JOIN availability_slots s ON s.id = b.slot_id
     JOIN services sv ON sv.id = s.service_id

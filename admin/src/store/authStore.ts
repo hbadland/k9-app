@@ -16,12 +16,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { data } = await api.post('/auth/login', { email, password });
     if (data.user.role !== 'admin') throw new Error('Admin access only');
     localStorage.setItem('k9_admin_token', data.accessToken);
+    localStorage.setItem('k9_admin_refresh', data.refreshToken);
     setAuthToken(data.accessToken);
     set({ user: data.user });
   },
 
   logout: () => {
     localStorage.removeItem('k9_admin_token');
+    localStorage.removeItem('k9_admin_refresh');
     setAuthToken(null);
     set({ user: null });
   },

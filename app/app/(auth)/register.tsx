@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
          Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { C, F } from '../../lib/theme';
+import { useColors } from '../../lib/useColors';
+import { F } from '../../lib/theme';
 
 export default function Register() {
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const router = useRouter();
+
   const [firstName, setFirstName] = useState('');
   const [lastName,  setLastName]  = useState('');
   const [email,     setEmail]     = useState('');
@@ -24,56 +28,61 @@ export default function Register() {
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient colors={['#1F1C14', C.dark]} style={s.topGrad}
-        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
       <ScrollView contentContainerStyle={s.inner} keyboardShouldPersistTaps="handled">
-        <Text style={s.brand}>
-          🐾 Battersea <Text style={s.brandAccent}>K9</Text>
-        </Text>
-        <Text style={s.sub}>Create your account</Text>
+        <View style={s.brand}>
+          <Text style={s.brandName}>Battersea <Text style={s.brandAccent}>K9</Text></Text>
+          <Text style={s.brandTag}>Create your account</Text>
+        </View>
 
         <View style={s.form}>
-          <TextInput style={s.input} placeholder="First name" placeholderTextColor={C.muted}
-            value={firstName} onChangeText={setFirstName} />
-          <TextInput style={s.input} placeholder="Last name" placeholderTextColor={C.muted}
-            value={lastName} onChangeText={setLastName} />
-          <TextInput style={s.input} placeholder="Email" placeholderTextColor={C.muted}
+          <View style={s.row}>
+            <TextInput style={[s.input, { flex: 1 }]} placeholder="First name" placeholderTextColor={C.muted}
+              value={firstName} onChangeText={setFirstName} />
+            <TextInput style={[s.input, { flex: 1 }]} placeholder="Last name" placeholderTextColor={C.muted}
+              value={lastName} onChangeText={setLastName} />
+          </View>
+          <TextInput style={s.input} placeholder="Email address" placeholderTextColor={C.muted}
             value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
           <TextInput style={s.input} placeholder="Password (min 8 characters)" placeholderTextColor={C.muted}
             value={password} onChangeText={setPassword} secureTextEntry />
-
-          <TouchableOpacity style={s.btn} onPress={submit} disabled={busy}>
-            <LinearGradient colors={[C.gold, C.goldLight]} style={s.btnGrad}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-              {busy
-                ? <ActivityIndicator color={C.dark} />
-                : <Text style={s.btnText}>Create account</Text>
-              }
-            </LinearGradient>
+          <TouchableOpacity style={[s.btn, busy && s.btnDim]} onPress={submit} disabled={busy}>
+            {busy ? <ActivityIndicator color={C.dark} /> : <Text style={s.btnText}>Create account</Text>}
           </TouchableOpacity>
         </View>
 
-        <Link href="/(auth)/login" style={s.link}>
-          Already have an account? <Text style={s.linkAccent}>Sign in</Text>
+        <Text style={s.legal}>
+          By creating an account you agree to our{' '}
+          <Text style={s.legalLink} onPress={() => router.push('/(auth)/terms')}>Terms of Service</Text>
+          {' '}and{' '}
+          <Text style={s.legalLink} onPress={() => router.push('/(auth)/privacy')}>Privacy Policy</Text>
+        </Text>
+
+        <Link href="/(auth)/login">
+          <Text style={s.footerText}>Already have an account? <Text style={s.footerLink}>Sign in</Text></Text>
         </Link>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: C.dark },
-  topGrad:     { position: 'absolute', top: 0, left: 0, right: 0, height: 240 },
-  inner:       { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 60 },
-  brand:       { fontSize: 34, color: C.cream, textAlign: 'center', marginBottom: 6, fontFamily: F.serif, fontWeight: '700' },
-  brandAccent: { color: C.gold, fontStyle: 'italic', fontFamily: F.serif },
-  sub:         { color: C.muted, textAlign: 'center', fontSize: 14, marginBottom: 36 },
-  form:        { marginBottom: 24 },
-  input:       { backgroundColor: C.dark3, color: C.cream, borderRadius: 14, padding: 16,
-                 marginBottom: 10, fontSize: 15, borderWidth: 1, borderColor: C.dark4 },
-  btn:         { borderRadius: 16, overflow: 'hidden', marginTop: 6 },
-  btnGrad:     { padding: 17, alignItems: 'center' },
-  btnText:     { color: C.dark, fontWeight: '700', fontSize: 15 },
-  link:        { color: C.muted, textAlign: 'center', fontSize: 13 },
-  linkAccent:  { color: C.gold },
-});
+function makeStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    root:        { flex: 1, backgroundColor: C.dark },
+    inner:       { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 60 },
+    brand:       { alignItems: 'center', marginBottom: 40 },
+    brandName:   { fontFamily: F.serif, fontSize: 36, fontWeight: '700', color: C.cream, letterSpacing: -0.5 },
+    brandAccent: { color: C.gold, fontStyle: 'italic' },
+    brandTag:    { fontSize: 13, color: C.muted, marginTop: 6 },
+    form:        { marginBottom: 20 },
+    row:         { flexDirection: 'row', gap: 10 },
+    input:       { backgroundColor: C.dark3, color: C.cream, borderRadius: 14, paddingHorizontal: 18,
+                   paddingVertical: 16, marginBottom: 10, fontSize: 15, borderWidth: 1, borderColor: C.border },
+    btn:         { backgroundColor: C.gold, borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 4 },
+    btnDim:      { opacity: 0.7 },
+    btnText:     { color: C.dark, fontWeight: '700', fontSize: 15 },
+    legal:       { fontSize: 12, color: C.muted, textAlign: 'center', lineHeight: 18, marginBottom: 20 },
+    legalLink:   { color: C.gold },
+    footerText:  { fontSize: 13, color: C.muted, textAlign: 'center' },
+    footerLink:  { color: C.gold },
+  });
+}

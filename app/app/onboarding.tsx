@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
          ActivityIndicator, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { C, F } from '../lib/theme';
+import { useColors } from '../lib/useColors';
+import { F } from '../lib/theme';
 
 type Step = 'profile' | 'dog';
 
 export default function Onboarding() {
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+
   const router = useRouter();
   const { loadUser } = useAuthStore();
   const [step, setStep] = useState<Step>('profile');
@@ -55,9 +58,6 @@ export default function Onboarding() {
 
   return (
     <View style={s.root}>
-      <LinearGradient colors={['#1F1C14', C.dark]} style={s.topGrad}
-        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
-
       <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
 
@@ -73,18 +73,15 @@ export default function Onboarding() {
             <Text style={s.title}>Your profile</Text>
             <Text style={s.sub}>Help us personalise your experience</Text>
 
-            <SLabel label="Name" />
-            <Input placeholder="First name" value={firstName} onChange={setFirstName} />
-            <Input placeholder="Last name"  value={lastName}  onChange={setLastName} />
-            <SLabel label="Contact" />
-            <Input placeholder="Phone number"  value={phone}   onChange={setPhone}   phone />
-            <Input placeholder="Home address"  value={address} onChange={setAddress} multiline />
+            <SLabel C={C} label="Name" />
+            <Input C={C} placeholder="First name" value={firstName} onChange={setFirstName} />
+            <Input C={C} placeholder="Last name"  value={lastName}  onChange={setLastName} />
+            <SLabel C={C} label="Contact" />
+            <Input C={C} placeholder="Phone number"  value={phone}   onChange={setPhone}   phone />
+            <Input C={C} placeholder="Home address"  value={address} onChange={setAddress} multiline />
 
-            <TouchableOpacity style={s.btn} onPress={saveProfile} disabled={busy}>
-              <LinearGradient colors={[C.gold, C.goldLight]} style={s.btnGrad}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                {busy ? <ActivityIndicator color={C.dark} /> : <Text style={s.btnText}>Continue →</Text>}
-              </LinearGradient>
+            <TouchableOpacity style={[s.btn, busy && { opacity: 0.7 }]} onPress={saveProfile} disabled={busy}>
+              {busy ? <ActivityIndicator color={C.dark} /> : <Text style={s.btnText}>Continue →</Text>}
             </TouchableOpacity>
           </>
         ) : (
@@ -92,26 +89,24 @@ export default function Onboarding() {
             <Text style={s.title}>Tell us about{'\n'}your dog</Text>
             <Text style={s.sub}>You can add more dogs later</Text>
 
-            <SLabel label="About" />
-            <Input placeholder="Dog's name *" value={dogName}   onChange={setDogName} />
-            <Input placeholder="Breed"        value={breed}     onChange={setBreed} />
-            <Input placeholder="Age (months)" value={ageMonths} onChange={setAgeMonths} numeric />
+            <SLabel C={C} label="About" />
+            <Input C={C} placeholder="Dog's name *" value={dogName}   onChange={setDogName} />
+            <Input C={C} placeholder="Breed"        value={breed}     onChange={setBreed} />
+            <Input C={C} placeholder="Age (months)" value={ageMonths} onChange={setAgeMonths} numeric />
 
-            <SLabel label="Vet details" />
-            <Input placeholder="Vet name"  value={vetName}  onChange={setVetName} />
-            <Input placeholder="Vet phone" value={vetPhone} onChange={setVetPhone} phone />
+            <SLabel C={C} label="Vet details" />
+            <Input C={C} placeholder="Vet name"  value={vetName}  onChange={setVetName} />
+            <Input C={C} placeholder="Vet phone" value={vetPhone} onChange={setVetPhone} phone />
 
-            <SLabel label="Behavioural notes" />
+            <SLabel C={C} label="Behavioural notes" />
             <Input
+              C={C}
               placeholder="Anything we should know? e.g. reactive on lead, nervous around strangers"
               value={behNotes} onChange={setBehNotes} multiline
             />
 
-            <TouchableOpacity style={s.btn} onPress={finish} disabled={busy}>
-              <LinearGradient colors={[C.gold, C.goldLight]} style={s.btnGrad}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                {busy ? <ActivityIndicator color={C.dark} /> : <Text style={s.btnText}>Finish setup</Text>}
-              </LinearGradient>
+            <TouchableOpacity style={[s.btn, busy && { opacity: 0.7 }]} onPress={finish} disabled={busy}>
+              {busy ? <ActivityIndicator color={C.dark} /> : <Text style={s.btnText}>Finish setup</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={s.skipBtn} onPress={finish}>
               <Text style={s.skipText}>Skip for now</Text>
@@ -124,21 +119,25 @@ export default function Onboarding() {
   );
 }
 
-function SLabel({ label }: { label: string }) {
-  return <Text style={sl.l}>{label}</Text>;
+function SLabel({ C, label }: { C: ReturnType<typeof useColors>; label: string }) {
+  return (
+    <Text style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.8, color: C.gold,
+                   marginTop: 16, marginBottom: 8, opacity: 0.8 }}>
+      {label}
+    </Text>
+  );
 }
-const sl = StyleSheet.create({
-  l: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.8, color: C.gold,
-       marginTop: 16, marginBottom: 8, opacity: 0.8 },
-});
 
-function Input({ placeholder, value, onChange, numeric, phone, multiline }: {
-  placeholder: string; value: string; onChange: (v: string) => void;
-  numeric?: boolean; phone?: boolean; multiline?: boolean;
+function Input({ C, placeholder, value, onChange, numeric, phone, multiline }: {
+  C: ReturnType<typeof useColors>; placeholder: string; value: string;
+  onChange: (v: string) => void; numeric?: boolean; phone?: boolean; multiline?: boolean;
 }) {
   return (
     <TextInput
-      style={[inp.i, multiline && { height: 88, textAlignVertical: 'top' }]}
+      style={[{
+        backgroundColor: C.dark3, color: C.cream, borderRadius: 14, padding: 14,
+        marginBottom: 8, fontSize: 14, borderWidth: 1, borderColor: C.border,
+      }, multiline && { height: 88, textAlignVertical: 'top' }]}
       placeholder={placeholder} placeholderTextColor={C.muted}
       value={value} onChangeText={onChange}
       keyboardType={numeric ? 'numeric' : phone ? 'phone-pad' : 'default'}
@@ -146,27 +145,23 @@ function Input({ placeholder, value, onChange, numeric, phone, multiline }: {
     />
   );
 }
-const inp = StyleSheet.create({
-  i: { backgroundColor: C.dark3, color: C.cream, borderRadius: 14, padding: 14,
-       marginBottom: 8, fontSize: 14, borderWidth: 1, borderColor: C.dark4 },
-});
 
-const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: C.dark },
-  topGrad: { position: 'absolute', top: 0, left: 0, right: 0, height: 260 },
-  content: { paddingHorizontal: 28, paddingTop: 72 },
+function makeStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    root:    { flex: 1, backgroundColor: C.dark },
+    content: { paddingHorizontal: 28, paddingTop: 72 },
 
-  steps:   { flexDirection: 'row', alignItems: 'center', marginBottom: 36 },
-  dot:     { width: 10, height: 10, borderRadius: 5, backgroundColor: C.dark4 },
-  dotActive:{ backgroundColor: C.gold },
-  dotLine: { flex: 1, height: 1, backgroundColor: C.dark4, marginHorizontal: 8 },
+    steps:    { flexDirection: 'row', alignItems: 'center', marginBottom: 36 },
+    dot:      { width: 10, height: 10, borderRadius: 5, backgroundColor: C.dark4 },
+    dotActive:{ backgroundColor: C.gold },
+    dotLine:  { flex: 1, height: 1, backgroundColor: C.dark4, marginHorizontal: 8 },
 
-  title:   { fontSize: 30, fontWeight: '700', color: C.cream, fontFamily: F.serif, lineHeight: 36, marginBottom: 6 },
-  sub:     { color: C.muted, fontSize: 14, marginBottom: 24 },
+    title:   { fontSize: 30, fontWeight: '700', color: C.cream, fontFamily: F.serif, lineHeight: 36, marginBottom: 6 },
+    sub:     { color: C.muted, fontSize: 14, marginBottom: 24 },
 
-  btn:     { borderRadius: 16, overflow: 'hidden', marginTop: 16 },
-  btnGrad: { padding: 17, alignItems: 'center' },
-  btnText: { color: C.dark, fontWeight: '700', fontSize: 15 },
-  skipBtn: { padding: 14, alignItems: 'center' },
-  skipText:{ color: C.muted, fontSize: 13 },
-});
+    btn:     { backgroundColor: C.gold, borderRadius: 16, padding: 17, alignItems: 'center', marginTop: 16 },
+    btnText: { color: C.dark, fontWeight: '700', fontSize: 15 },
+    skipBtn: { padding: 14, alignItems: 'center' },
+    skipText:{ color: C.muted, fontSize: 13 },
+  });
+}

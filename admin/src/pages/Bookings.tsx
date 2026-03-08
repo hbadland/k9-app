@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import { startGpsStream } from '../lib/socket';
 
 interface Booking {
   id: string;
+  dog_id: string;
   owner_name: string;
   owner_email: string;
+  owner_address?: string;
+  owner_phone?: string;
   dog_name: string;
   service_name: string;
   slot_date: string;
@@ -56,7 +60,11 @@ export default function Bookings() {
   const [msgInput, setMsgInput]       = useState<Record<string, string>>({});
   const [photoPreview, setPhotoPreview] = useState<Record<string, string>>({});
   const [sending, setSending]         = useState<Record<string, boolean>>({});
+  const [gpsActive, setGpsActive]     = useState<Record<string, boolean>>({});
+  const [gpsError, setGpsError]       = useState<Record<string, string>>({});
+  const gpsStopFns                    = useRef<Record<string, () => void>>({});
   const fileRefs                      = useRef<Record<string, HTMLInputElement | null>>({});
+  const adminToken = localStorage.getItem('k9_admin_token') ?? '';
 
   useEffect(() => { load(); }, []);
 
@@ -104,6 +112,24 @@ export default function Bookings() {
       if (fileRefs.current[bookingId]) fileRefs.current[bookingId]!.value = '';
     } finally {
       setSending(s => ({ ...s, [bookingId]: false }));
+    }
+  }
+
+  function toggleGps(b: Booking) {
+    if (gpsActive[b.id]) {
+      gpsStopFns.current[b.id]?.();
+      delete gpsStopFns.current[b.id];
+      setGpsActive(prev => ({ ...prev, [b.id]: false }));
+      setGpsError(prev => ({ ...prev, [b.id]: '' }));
+    } else {
+      const stop = startGpsStream({
+        token: adminToken,
+        dogId: b.dog_id,
+        bookingId: b.id,
+        onError: (err) => setGpsError(prev => ({ ...prev, [b.id]: err })),
+      });
+      gpsStopFns.current[b.id] = stop;
+      setGpsActive(prev => ({ ...prev, [b.id]: true }));
     }
   }
 
@@ -157,6 +183,21 @@ export default function Bookings() {
                     <span className="text-dark3 text-xs">|</span>
                     <p className="text-textDim text-xs">{b.slot_start.slice(0, 5)} – {b.slot_end.slice(0, 5)}</p>
                   </div>
+                  {b.owner_address ? (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="text-gold text-xs font-semibold uppercase tracking-wide">Pickup</span>
+                      <span className="text-muted text-[10px]">·</span>
+                      <p className="text-textDim text-xs truncate">{b.owner_address}</p>
+                      {b.owner_phone && (
+                        <>
+                          <span className="text-muted text-[10px]">·</span>
+                          <a href={`tel:${b.owner_phone}`} className="text-gold/80 text-xs hover:text-gold transition">{b.owner_phone}</a>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-muted text-xs mt-1 italic">No pickup address on file</p>
+                  )}
                 </div>
 
                 {/* Status badge */}
@@ -176,6 +217,22 @@ export default function Bookings() {
                       {label}
                     </button>
                   ))}
+
+                  {/* Real GPS streaming (in_progress only) */}
+                  {b.status === 'in_progress' && (
+                    <button onClick={() => toggleGps(b)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                        gpsActive[b.id]
+                          ? 'bg-green-900/40 text-green-400 hover:bg-green-900/70'
+                          : 'bg-dark3 text-muted hover:text-cream'
+                      }`}
+                      title={gpsActive[b.id] ? 'Stop GPS' : 'Start GPS streaming'}>
+                      {gpsActive[b.id] ? '📍 Streaming GPS' : '📍 Stream GPS'}
+                    </button>
+                  )}
+                  {gpsError[b.id] && (
+                    <span className="text-red-400 text-xs">{gpsError[b.id]}</span>
+                  )}
 
                   {/* Toggle thread */}
                   <button onClick={() => toggleThread(b.id)}

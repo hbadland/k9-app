@@ -24,9 +24,14 @@ export default function Clients() {
   const [loading, setLoading]   = useState(true);
   const [notes, setNotes]       = useState<Record<string, string>>({});
   const [saving, setSaving]     = useState<string | null>(null);
+  const [search, setSearch]     = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
-  const fetch = () =>
-    api.get('/admin/clients')
+  const load = (q?: string, s?: string) => {
+    const params = new URLSearchParams();
+    if (q) params.set('search', q);
+    if (s) params.set('status', s);
+    api.get(`/admin/clients?${params}`)
       .then(({ data }) => {
         setClients(data);
         const n: Record<string, string> = {};
@@ -34,8 +39,15 @@ export default function Clients() {
         setNotes(n);
       })
       .finally(() => setLoading(false));
+  };
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { load(); }, []);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    load(search, statusFilter);
+  };
 
   const saveNotes = async (id: string) => {
     setSaving(id);
@@ -48,11 +60,38 @@ export default function Clients() {
     setClients((prev) => prev.map((c) => c.id === id ? { ...c, status } : c));
   };
 
-  if (loading) return <p className="text-muted">Loading…</p>;
-
   return (
     <div>
-      <h2 className="text-xl font-bold text-cream mb-6">Clients ({clients.length})</h2>
+      <h2 className="text-xl font-bold text-cream mb-4">Clients</h2>
+
+      {/* Search & filter bar */}
+      <form onSubmit={handleSearch} className="flex gap-3 mb-6 flex-wrap">
+        <input
+          type="text" placeholder="Search by name or email…"
+          value={search} onChange={e => setSearch(e.target.value)}
+          className="flex-1 min-w-48 bg-dark2 border border-dark3 rounded-lg px-4 py-2 text-cream text-sm placeholder-muted focus:outline-none focus:border-gold"
+        />
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          className="bg-dark2 border border-dark3 rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold">
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <button type="submit"
+          className="px-4 py-2 bg-gold text-dark font-semibold rounded-lg text-sm hover:opacity-90 transition">
+          Search
+        </button>
+        {(search || statusFilter) && (
+          <button type="button" onClick={() => { setSearch(''); setStatusFilter(''); load(); }}
+            className="px-4 py-2 bg-dark3 text-muted rounded-lg text-sm hover:text-cream transition">
+            Clear
+          </button>
+        )}
+      </form>
+
+      {loading && <p className="text-muted">Loading…</p>}
+      {!loading && <p className="text-muted text-xs mb-4">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>}
       <div className="space-y-3 max-w-2xl">
         {clients.map((c) => (
           <div key={c.id} className="bg-dark2 border border-dark3 rounded-2xl overflow-hidden">

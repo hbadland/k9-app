@@ -31,12 +31,14 @@ export const createUser = async (
   email: string,
   passwordHash: string,
   firstName?: string,
-  lastName?: string
+  lastName?: string,
+  termsAccepted?: boolean
 ): Promise<User> => {
+  const termsAt = termsAccepted ? new Date() : null;
   const { rows } = await pool.query(
-    `INSERT INTO users (email, password_hash, first_name, last_name)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [email, passwordHash, firstName ?? null, lastName ?? null]
+    `INSERT INTO users (email, password_hash, first_name, last_name, terms_accepted_at)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [email, passwordHash, firstName ?? null, lastName ?? null, termsAt]
   );
   return rows[0];
 };
@@ -118,4 +120,48 @@ export const linkGoogleId = async (userId: string, googleId: string): Promise<vo
 
 export const linkAppleId = async (userId: string, appleId: string): Promise<void> => {
   await pool.query('UPDATE users SET apple_id = $1 WHERE id = $2', [appleId, userId]);
+};
+
+export const updatePasswordHash = async (userId: string, passwordHash: string): Promise<void> => {
+  await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+};
+
+export const updateAvatarUrl = async (userId: string, avatarUrl: string): Promise<User | null> => {
+  const { rows } = await pool.query(
+    'UPDATE users SET avatar_url = $1 WHERE id = $2 RETURNING *', [avatarUrl, userId]
+  );
+  return rows[0] ?? null;
+};
+
+export const savePasswordResetToken = async (userId: string, tokenHash: string, expiresAt: Date): Promise<void> => {
+  // Delete any existing tokens for this user first
+  await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
+  await pool.query(
+    'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+    [userId, tokenHash, expiresAt]
+  );
+};
+
+export const findPasswordResetToken = async (tokenHash: string) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM password_reset_tokens WHERE token_hash = $1 AND expires_at > NOW() AND used_at IS NULL',
+    [tokenHash]
+  );
+  return rows[0] ?? null;
+};
+
+export const invalidatePasswordResetToken = async (tokenHash: string): Promise<void> => {
+  await pool.query(
+    'UPDATE password_reset_tokens SET used_at = NOW() WHERE token_hash = $1',
+    [tokenHash]
+  );
+};
+
+export const deleteAllRefreshTokensForUser = async (userId: string): Promise<void> => {
+  await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+};
+
+export const deleteUserAndData = async (userId: string): Promise<void> => {
+  // Cascade deletes handle related records via FK constraints
+  await pool.query('DELETE FROM users WHERE id = $1', [userId]);
 };
